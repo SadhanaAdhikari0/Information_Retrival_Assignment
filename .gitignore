@@ -32,3 +32,10 @@ Thumbs.db
 
 # Claude configuration
 .claude/
+
+# Assignment specific files
+*.pdf
+*.ipynb
+*.csv
+report_*.txt
+*Prompt*.md
