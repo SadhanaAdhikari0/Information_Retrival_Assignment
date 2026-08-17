@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(Write-Output \"=== backend ===\"; Get-ChildItem -Recurse -Depth 3 backend | Select-Object FullName | ForEach-Object { $_.FullName.Replace\\(\\(Get-Location\\).Path + '\\\\', ''\\) })",
+      "PowerShell(jupyter nbconvert --to script --stdout \"Task-1 vertical_search_engine_assignment.ipynb\" 2>$null)",
+      "PowerShell(python --version)",
+      "PowerShell(pip show python-docx 2>$null)",
+      "PowerShell(Get-Process python -ErrorAction SilentlyContinue)",
+      "PowerShell(\\(Get-Content \"c:\\\\Users\\\\jrohi\\\\OneDrive\\\\Desktop\\\\Information_Retrival_Assignment\\\\backend\\\\generate_report.py\" | Measure-Object -Line\\).Lines)"
+    ]
+  }
+}

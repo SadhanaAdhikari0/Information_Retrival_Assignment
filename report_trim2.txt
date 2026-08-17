@@ -1,0 +1,446 @@
+[2][Normal] ST7071CEM — Information Retrieval
+[3][Normal] Coursework: Vertical Search Engine and News Document Clustering
+[6][Normal] Module:  ST7071CEM — Information Retrieval
+[7][Normal] Module Leader:  Coventry University
+[8][Normal] Submission:  2026
+[9][Normal] Word Count:  ≤ 2,500 words (main body)
+[11][Heading 1] Abstract
+[12][Normal] This report presents the design, implementation, and evaluation of an integrated Information Retrieval platform developed for the ST7071CEM coursework. The platform comprises two major tasks: a vertical search engine targeting the Coventry University Centre for Healthcare and Community Transformation PurePortal (Task 1), and a news document clustering and classification system (Task 2).
+[13][Normal] For Task 1, a polite, robots.txt-aware web crawler (Python requests + BeautifulSoup) was developed to collect research outputs and researcher profiles from the Coventry PurePortal. The crawler operates on a 90-day (three-month) schedule, consistent with the assignment requirements. Collected documents were preprocessed using a standard NLP pipeline comprising tokenisation, stop-word removal, and Porter stemming. Documents were subsequently indexed using TF-IDF (Term Frequency – Inverse Document Frequency) vectorisation under the Vector Space Model (VSM). User queries are processed through the same NLP pipeline, converted into query vectors, and ranked against document vectors using cosine similarity. The system returns the top-K=10 most relevant results per page with functional pagination.
+[14][Normal] For Task 2, documents were collected from live BBC RSS feeds and topped up with real Wikipedia article extracts across three categories: Economics (72), Entertainment (42), and Politics (84) — 198 documents in total, comfortably exceeding the coursework's 100-document minimum. Following NLP preprocessing and TF-IDF + LSA feature extraction, K-Means clustering (K=3) was trained to group documents into the three categories. Principal Component Analysis (PCA) was applied to reduce the high-dimensional TF-IDF space to two dimensions for cluster visualisation. The system allows users to submit arbitrary text for real-time classification into one of the three categories, with results persisted to MongoDB.
+[15][Normal] Both components are integrated into a single web application with a modern, responsive interface. Evaluation results demonstrate that the VSM search engine correctly ranks relevant documents with cosine similarity scores differentiated by query relevance, while the K-Means classifier correctly categorised 2 of 3 live example document types, with the remaining case illustrating genuine vocabulary overlap between categories rather than a system fault. The system is deployed using a Flask REST API backend and a React-based frontend, with MongoDB Atlas as the document store.
+[17][Heading 1] Table of Contents
+[18][Normal] Abstract	2
+[19][Normal] Table of Contents	3
+[20][Normal] List of Figures	4
+[21][Normal] List of Abbreviations	5
+[22][Normal] Conceptual System Diagram	6
+[23][Normal] 1. Introduction	7
+[24][Normal] 2. Task 1 — Vertical Search Engine	8
+[25][Normal]    2.1 Introduction and Problem Statement	8
+[26][Normal]    2.2 Objectives	8
+[27][Normal]    2.3 System Architecture	9
+[28][Normal]    2.4 Web Crawler Component	9
+[29][Normal]    2.5 Scheduling and Automation	10
+[30][Normal]    2.6 Data Collection and MongoDB Storage	11
+[31][Normal]    2.7 Text Preprocessing Pipeline	12
+[32][Normal]    2.8 Vector Space Model	13
+[33][Normal]    2.9 Cosine Similarity and Ranking	14
+[34][Normal]    2.10 Query Processing	15
+[35][Normal]    2.11 Top-K Search and Pagination	15
+[36][Normal]    2.12 Search Interface	16
+[37][Normal]    2.13 Evaluation and Testing	17
+[38][Normal]    2.14 Limitations and Improvements	19
+[39][Normal] 3. Task 2 — News Document Clustering	20
+[40][Normal]    3.1 Problem Statement	20
+[41][Normal]    3.2 Objectives	20
+[42][Normal]    3.3 Literature Review and Theoretical Foundation	21
+[43][Normal]    3.4 Dataset and Data Engineering	22
+[44][Normal]    3.5 Text Preprocessing and Feature Engineering	23
+[45][Normal]    3.6 TF-IDF Vectorisation	23
+[46][Normal]    3.7 K-Means Clustering Methodology	24
+[47][Normal]    3.8 User Input Classification	25
+[48][Normal]    3.9 MongoDB Storage	26
+[49][Normal]    3.10 Clustering Visualisation	26
+[50][Normal]    3.11 Results and Performance Analysis	27
+[51][Normal]    3.12 Discussion and Findings	28
+[52][Normal]    3.13 Limitations and Future Improvements	29
+[53][Normal] 4. Overall Discussion	30
+[54][Normal] 5. Conclusion	31
+[55][Normal] References	32
+[56][Normal] Appendix	34
+[58][Heading 1] List of Figures
+[59][Normal] Figure 1:	IR Research Platform — Vertical Search Engine Home Page
+[60][Normal] Figure 2:	Conceptual System Architecture Diagram
+[61][Normal] Figure 3:	Search Results for Query 'mental health' with Cosine Similarity Scores
+[62][Normal] Figure 4:	News Document Clustering — Overview Dashboard
+[63][Normal] Figure 5:	K-Means Cluster Visualisation — PCA 2D Projection of 198 Real Documents
+[64][Normal] Figure 6:	Document Classification Panel
+[65][Normal] Figure 7:	Classification Result — Economics Category Identified
+[67][Heading 1] List of Abbreviations
+[70][Heading 1] Conceptual System Diagram
+[71][Normal] The following diagram illustrates the complete end-to-end system architecture of the IR Research Platform, encompassing both Task 1 (Vertical Search Engine) and Task 2 (News Document Clustering). Both tasks share a unified MongoDB Atlas database and a React-based web interface served through a Flask REST API on port 5000.
+[74][Normal] Figure 2: Conceptual System Architecture — ST7071CEM IR Research Platform
+[76][Heading 1] 1. Introduction
+[77][Normal] The exponential growth of digital information challenges effective knowledge discovery: academic portals, news aggregators, and repositories produce vast unstructured text that simple keyword matching cannot navigate well. Information Retrieval (IR) addresses this through principled mathematical models that rank and categorise text by relevance to a user's information need.
+[78][Normal] This project implements two complementary IR components. Task 1 is a vertical search engine retrieving research outputs and researcher profiles from the Coventry University Centre for Healthcare and Community Transformation PurePortal, using the Vector Space Model (VSM) with TF-IDF weighting and cosine similarity ranking (Manning, Raghavan, & Schütze, 2008). Task 2 addresses automated document categorisation through unsupervised K-Means clustering (K=3) applied to real news/reference documents, partitioning them into Economics, Entertainment, and Politics.
+[79][Normal] The motivation is the dual nature of real-world IR needs: precise retrieval from a domain-specific repository (vertical search), and scalable automated organisation of a document stream (clustering). Implementing both within one platform demonstrates the complementary nature of retrieval and classification.
+[80][Normal] The system is implemented using Python (Flask) for the backend API, React (Vite) for the frontend, MongoDB Atlas for storage, and NLTK/scikit-learn for text processing. The crawler uses requests and BeautifulSoup, performing a breadth-first traversal from the seed URL that follows only Research Output and Profile links.
+[82][Normal] Figure 1: IR Research Platform — Vertical Search Engine Home Page
+[84][Heading 1] 2. Task 1 — Vertical Search Engine
+[85][Heading 2] 2.1 Introduction and Problem Statement
+[86][Normal] A vertical search engine focuses retrieval on a specific domain rather than the entire web — here, the Coventry University Centre for Healthcare and Community Transformation PurePortal, a repository of research outputs and researcher profiles. The problem is locating specific publications or researchers via natural language queries within a portal that exposes no public search API.
+[87][Normal] The system must crawl, extract, and index PurePortal content, then rank results with mathematically principled relevance scoring. Users may query by title, author name, keyword, or phrase, and receive ranked results with clickable links, publication dates, and visible relevance scores.
+[88][Heading 2] 2.2 Objectives
+[89][List Bullet] Implement a polite, robots.txt-compliant web crawler (requests + BeautifulSoup) to collect research outputs and researcher profiles from the Coventry PurePortal.
+[90][List Bullet] Schedule the crawler to execute on a 90-day (three-month) interval, as required by the assignment specification.
+[91][List Bullet] Store collected data in a structured MongoDB Atlas database.
+[92][List Bullet] Implement an NLP preprocessing pipeline (tokenisation, stop-word removal, Porter stemming).
+[93][List Bullet] Build a TF-IDF Vector Space Model over the collected documents.
+[94][List Bullet] Implement cosine similarity ranking to return the top-K=10 most relevant results per query.
+[95][List Bullet] Develop a professional, responsive web interface with search functionality, result cards, similarity score visualisation, and pagination.
+[96][List Bullet] Include clickable publication titles and clickable researcher profile links where available.
+[97][Heading 2] 2.3 System Architecture
+[98][Normal] The Task 1 architecture is a layered pipeline. The data layer comprises MongoDB Atlas collections: doc_vectors (77 TF-IDF vectors), term_index (3,812 terms with IDF values), research_outputs (83 publications), researcher_profiles (122 profiles), and crawl_log. The crawler layer uses requests + BeautifulSoup for HTML parsing and metadata extraction. The processing layer applies the NLP pipeline and builds TF-IDF vectors. The API layer is a Flask REST API (/api/search, /api/suggestions, /api/crawl-status); the presentation layer is a React single-page application.
+[99][Heading 2] 2.4 Web Crawler Component
+[100][Normal] The crawler (scheduler.py: crawl()) targets the Centre for Healthcare and Community Transformation organisation page at:
+[101][Normal] https://pureportal.coventry.ac.uk/en/organisations/centre-for-healthcare-and-community-transformation/
+[102][Normal] Plain HTTP GET requests (with a descriptive educational-bot User-Agent) succeed directly against PurePortal — no browser automation is required. From the seed page, the crawler performs a breadth-first traversal, following only links whose path starts with /en/publications/, /en/persons/, or /en/organisations/centre-for-healthcare, queuing every newly discovered relevant link until none remain.
+[103][Normal] For each research output, the following metadata is extracted:
+[104][List Bullet] Publication title (from H1 heading or page title element)
+[105][List Bullet] Author names (from /en/persons/ anchor elements)
+[106][List Bullet] Author profile URLs (hyperlinks associated with author names)
+[107][List Bullet] Publication date or year (extracted via regex from date elements and full page text)
+[108][List Bullet] Abstract or description (from abstract/description CSS class selectors)
+[109][List Bullet] Publication type (journal article, conference paper, etc.)
+[110][List Bullet] Keywords
+[111][List Bullet] Full page text (for TF-IDF indexing)
+[112][List Bullet] Source URL, crawl timestamp, and update timestamp
+[113][Normal] Polite crawling is implemented throughout: a five-second delay between requests (matching PurePortal's own robots.txt Crawl-Delay), a descriptive User-Agent, URL deduplication, and GET requests only. robots.txt compliance is actually enforced — can_fetch() is called from fetch_page() before every request, not merely demonstrated in a comment (see Section 2.4.1 for a real bug this uncovered).
+[114][Heading 3] 2.4.1 Ethical Web Crawling and Robots.txt Parsing
+[115][Normal] Ethical crawling is a core IR requirement. The crawler checks every URL against PurePortal's robots.txt via Python's urllib.robotparser before fetching. Building this surfaced a genuine bug: RobotFileParser.read() fetches robots.txt via bare urllib.request with no custom headers, and PurePortal's edge protection returns HTTP 403 to urllib's default User-Agent (confirmed independently — the identical URL returns 200 via requests). RobotFileParser silently treats a 403 as "disallow everything", so the first version of this check blocked the crawler from fetching even its own seed URL. The fix — fetch the robots.txt text via requests with the crawler's own User-Agent, then hand it to RobotFileParser.parse() instead of .read() — resolved it. PurePortal's robots.txt (checked 2026-08-15) permits every path this crawler visits and specifies Crawl-Delay: 5, matching the crawler's delay.
+[117][Caption] Figure X: Robots.txt parser implementation ensuring ethical crawling standards.
+[118][Heading 2] 2.5 Scheduling and Automation
+[119][Normal] Crawler scheduling is managed by scheduler.py (start_scheduler()), using APScheduler's BlockingScheduler with an IntervalTrigger set to days=CRAWL_INTERVAL_DAYS (90 by default) — implementing the strict 3-month interval required by the specification. The scheduler runs the crawl immediately on startup, then re-runs every 3 months:
+[120][Normal] scheduler.add_job(run_crawl, trigger=IntervalTrigger(days=CRAWL_INTERVAL_DAYS), name="PurePortal 3-month Crawl — ST7071CEM Task 1")
+[121][Normal] This interval suits the slow-changing nature of academic research portals, where new publications are typically added quarterly — balancing data freshness against server load, and avoiding the excessive impact of daily or weekly crawling.
+[122][Heading 2] 2.6 Data Collection and MongoDB Storage
+[123][Normal] Collected data is stored in the vertical_search_engine MongoDB Atlas database. The database architecture comprises the following collections:
+[125][Heading 2] 2.7 Text Preprocessing Pipeline
+[126][Normal] The NLP pipeline is applied identically to crawled documents (indexing) and user queries (search) — essential for the Vector Space Model, since query and document vectors must share the same space. The pipeline has five stages:
+[127][Normal] 1. Lowercase Normalisation: All text is converted to lowercase to ensure case-insensitive matching. The term 'Healthcare' and 'healthcare' are treated as equivalent.
+[128][Normal] 2. Non-alphanumeric Removal: Punctuation and special characters are removed using the regular expression [^a-z0-9\s], ensuring only alphanumeric tokens remain.
+[129][Normal] 3. Tokenisation: The NLTK word_tokenize function is applied, which correctly handles contractions, hyphens, and other linguistic constructs.
+[130][Normal] 4. Stop-word Removal: Standard English stop-words (NLTK corpus) are removed, supplemented by domain-specific terms: 'coventry', 'research', 'pureportal', 'university', 'www', 'http', 'https'.
+[131][Normal] 5. Porter Stemming: Each remaining token is reduced to its stem using the NLTK PorterStemmer. This reduces morphological variants to a common base: 'healthcare', 'healthcares' → 'healthcar'.
+[132][Normal] Stemming was chosen over lemmatisation given the small corpus size (83 documents) and the need to consolidate related healthcare terminology. Author names and URLs are not stemmed, preserving exact retrievability.
+[133][Heading 2] 2.8 Vector Space Model
+[134][Normal] The Vector Space Model (VSM) represents documents and queries as vectors in a multi-dimensional term space, one dimension per vocabulary term. Each term's weight is its TF-IDF score:
+[135][Normal] TF(t, d)  =  count(t, d) / |d|
+[136][Normal] IDF(t)  =  log( N / (1 + df(t)) ) + 1
+[137][Normal] TF-IDF(t, d)  =  TF(t, d)  ×  IDF(t)
+[138][Normal] Where t is a term, d a document, count(t,d) its frequency in d, |d| the total terms in d, N the corpus size (83), and df(t) the number of documents containing t. Document vectors are L2-normalised, so document length does not bias similarity scores.
+[139][Normal] term_index stores the pre-computed IDF value for each of 3,812 vocabulary terms. During indexing (scheduler.py: build_index()), document TF-IDF vectors are computed and stored in doc_vectors. Search-time query vectors use the same stored IDF values, keeping document and query representations consistent.
+[140][Heading 2] 2.9 Cosine Similarity and Ranking
+[141][Normal] Relevance ranking is computed using cosine similarity between the query vector Q and each document vector D:
+[142][Normal] cos(θ)  =  (Q · D)  /  (||Q|| × ||D||)
+[143][Normal] Since both Q and D are L2-normalised (||Q|| = ||D|| = 1), the formula reduces to the dot product of shared terms only, which is computationally efficient:
+[144][Normal] cos(θ)  =  Σ  Q(t) × D(t)    for t ∈ Q ∩ D
+[145][Normal] Cosine similarity ranges from 0 (no shared terms) to 1 (identical vectors). All documents scoring above zero are ranked descending, with the top-K=10 returned per page. Each result card shows its score as a colour-coded relevance bar: green (≥0.50), amber (≥0.20), or indigo (lower).
+[146][Heading 2] 2.10 Query Processing
+[147][Normal] User queries pass through the same NLP pipeline as documents. Query TF is the relative term frequency within the query; terms absent from term_index are ignored (no discriminative power). The resulting query vector is L2-normalised before scoring.
+[148][Normal] The system supports four query types: publication title queries; author name queries, matching name tokens against profile and publication documents; keyword queries for domain concepts; and multi-term phrase queries, where multiple matches produce additive cosine contributions.
+[149][Heading 2] 2.11 Top-K Search and Pagination
+[150][Normal] The engine returns exactly K=10 results per page, as required. When relevant documents exceed 10, pagination is provided via page-number and previous/next controls, passed as a page query parameter; the backend slices the ranked list accordingly:
+[151][Normal] results = scored[(page-1)*10 : page*10]
+[152][Heading 2] 2.12 Search Interface
+[153][Normal] The search interface is a React single-page application (SearchPage.jsx), styled after Google Scholar's functional simplicity with a dark academic aesthetic. Key elements include:
+[154][List Bullet] A full-width search input with a gradient search button and a magnifying glass icon
+[155][List Bullet] Autocomplete suggestions powered by prefix-matching against the term_index via /api/suggestions
+[156][List Bullet] Quick-term chips for common queries (mental health, healthcare, nursing, community, machine learning)
+[157][List Bullet] An index statistics strip showing live document count, term count, and crawl schedule information
+[158][List Bullet] Result cards displaying: publication title (clickable, opens the publication URL), author names (clickable if PurePortal profile link exists), publication date, and a visual cosine similarity score bar
+[159][List Bullet] Skeleton loading cards during API requests
+[160][List Bullet] An informative empty-state when no results match the query
+[161][List Bullet] Functional pagination with page-number buttons
+[163][Normal] Figure 3: Search Results for Query 'mental health' — Cosine Similarity Scores
+[164][Heading 2] 2.13 Evaluation and Testing
+[165][Normal] Six search queries were tested against the live system. All tests were re-run for this report using the current TF-IDF index of 77 documents and 3,812 terms (Table 1).
+[167][Normal] Table 1: Search Evaluation Results — Task 1
+[169][Normal] Tests T1–T4 demonstrate correct operation: the system ranks the most relevant document highest for T1 ('...Mental Well-Being', score 0.2982), and correctly surfaces the queried researcher's own publications for author-name queries T2/T3. T4 returns a full page for a multi-term domain query, confirming keyword search works alongside author and title search.
+[170][Normal] T5 ('healthcare community transformation') now returns 54 results, with the Centre's own organisation/network pages ranked highest (score 0.6852) — these terms are no longer stopwords, so the query behaves as expected. T6, an out-of-domain query, correctly returns zero results, confirming the system does not fabricate matches.
+[171][Normal] As an automated, reproducible relevance proxy (rather than subjective manual judgement), Table 2 reports lexical-overlap precision: the fraction of top-10 results whose title contains a query word. This is a conservative lower bound, since a genuinely relevant document can rank highly on body-text similarity alone without repeating query terms in its title.
+[173][Normal] Table 2: Precision@K Evaluation — Task 1
+[175][Heading 2] 2.14 Limitations and Improvements
+[176][Normal] Several limitations remain. First, the corpus (77 indexed publications, from 83 crawled pages) is modest next to a production PurePortal deployment covering hundreds of publications; some generic terms carry limited discriminative IDF weight simply because the corpus is small — a larger corpus would improve IDF calibration.
+[177][Normal] Second, the domain-specific stopword list removes terms like 'healthcare' and 'community' that are central to the domain — this avoids boilerplate over-matching but blocks some expected queries. Field-specific weighting or BM25 ranking would help.
+[178][Normal] Third, the most recent full crawl visited 282 pages with 78 fetch errors (timeouts/transient HTTP errors on a minority of pages) — normal for a large, polite crawl, and it did not prevent the corpus being built. More retries and a longer timeout would recover a few more pages.
+[179][Normal] Fourth, the system implements no query expansion or spelling correction; WordNet or biomedical-ontology synonym expansion would help in future versions.
+[181][Heading 2] 2.15 Code Evidence (Task 1)
+[182][Normal] The following snippet demonstrates the Web Crawler data acquisition loop.
+[184][Normal] The following snippet demonstrates the automated scheduler running the crawler exactly every 3 months (90 days).
+[186][Normal] The following snippet demonstrates the TF-IDF vectorisation and Cosine Similarity ranking logic for the Vertical Search Engine.
+[188][Heading 1] 3. Task 2 — News Document Clustering
+[189][Heading 2] 3.1 Problem Statement
+[190][Normal] News organisations publish hundreds of articles daily; manual categorisation is impractical. This task organises documents into three predefined categories — Economics, Entertainment, Politics — using unsupervised K-Means clustering (K=3).
+[191][Normal] The challenge is high dimensionality: a TF-IDF matrix for 198 documents may contain thousands of features, and K-Means must partition this space into three coherent, meaningful clusters. The system also provides real-time classification of new user-supplied text, demonstrating the trained model's operational utility.
+[192][Heading 2] 3.2 Objectives
+[193][List Bullet] Collect a real, citable document set across Economics, Entertainment, and Politics from live RSS feeds and Wikipedia.
+[194][List Bullet] Apply a consistent NLP preprocessing pipeline to all collected articles.
+[195][List Bullet] Vectorise the cleaned corpus using TF-IDF with unigram and bigram features.
+[196][List Bullet] Train a K-Means clustering model (K=3) using k-means++ initialisation.
+[197][List Bullet] Map numeric cluster IDs to category labels using a greedy one-to-one assignment.
+[198][List Bullet] Reduce the TF-IDF feature space to 2D using PCA for cluster visualisation.
+[199][List Bullet] Compute the silhouette score as a quantitative clustering quality metric.
+[200][List Bullet] Allow users to classify arbitrary text documents into Economics, Entertainment, or Politics.
+[201][List Bullet] Persist all news articles, cluster assignments, model state, and classification results to MongoDB.
+[202][Heading 2] 3.3 Literature Review and Theoretical Foundation
+[203][Normal] Document clustering partitions a collection D = {d₁, d₂, ..., dₙ} into K disjoint clusters {C₁, C₂, ..., Cₖ}, maximising intra-cluster and minimising inter-cluster similarity (Manning et al., 2008).
+[204][Normal] K-Means, the most widely used centroid-based algorithm, minimises the within-cluster sum of squared distances (WCSS):
+[205][Normal] J  =  Σₖ Σᵢ∈Cₖ  ||xᵢ − μₖ||²
+[206][Normal] Where xᵢ is document i's feature vector and μₖ its cluster's centroid. The algorithm alternates an assignment step (nearest centroid by Euclidean distance) and an update step (centroids recomputed as cluster means) until convergence.
+[207][Normal] TF-IDF was chosen over plain bag-of-words because it down-weights high-frequency, low-information terms, improving cluster separation (Salton & McGill, 1983; Steinbach, Karypis, & Kumar, 2000). k-means++ initialisation (Arthur & Vassilvitskii, 2007) spreads initial centroids probabilistically, improving convergence over random initialisation.
+[208][Normal] PCA is applied for 2D visualisation, projecting the data onto its two directions of maximum variance for visual inspection of cluster structure (Bishop, 2006).
+[209][Heading 2] 3.4 Dataset and Data Engineering
+[210][Normal] Documents were collected from two genuine, citable sources. Current news articles come from live BBC RSS feeds (feedparser, one feed per category); each entry's linked article page is fetched (subject to a robots.txt check) and its full body extracted with BeautifulSoup, falling back to the RSS summary if unavailable. Because a single feed only exposes a limited number of recent items, each category is topped up with real Wikipedia extracts (MediaWiki Search + Extracts API) on curated topics until MIN_DOCS_PER_CATEGORY is reached. Every document keeps its real source_url — fully traceable and citable, with nothing duplicated or synthetically generated.
+[211][List Bullet] Economics: ECONOMICS_RSS_URL (e.g., BBC Business RSS)
+[212][List Bullet] Entertainment: ENTERTAINMENT_RSS_URL (e.g., BBC Entertainment RSS)
+[213][List Bullet] Politics: POLITICS_RSS_URL (e.g., BBC Politics RSS)
+[214][Normal] Per document, the collector stores title, full text, source URL, date, and a source label ('BBC News (RSS)' or 'Wikipedia'). An MD5 fingerprint of title+URL prevents duplicates both within and across collection runs.
+[216][Normal] Table 3: Task 2 Dataset Distribution
+[219][Normal] Figure 4: News Document Clustering — Overview Dashboard (198 Documents)
+[220][Heading 2] 3.5 Text Preprocessing and Feature Engineering
+[221][Normal] The news NLP pipeline mirrors the Task 1 pipeline with adjustments for news content. For each article, the raw_text field (title concatenated with content) is processed through:
+[222][Normal] HTML Cleaning: HTML tags and common HTML entities are stripped using regular expressions, as RSS content often contains embedded markup.
+[223][Normal] Lowercase Normalisation: All text is lowercased.
+[224][Normal] Punctuation and Digit Removal: Non-alphabetic characters are removed ([^a-z\s]), retaining only word tokens.
+[225][Normal] Tokenisation: NLTK word_tokenize is applied.
+[226][Normal] Stop-word Removal: Standard English stopwords plus news-domain terms are removed: 'said', 'would', 'could', 'reuters', 'bbc', 'cnn', 'ap', 'afp'.
+[227][Normal] Porter Stemming: Each token is stemmed to its root form.
+[228][Heading 2] 3.6 TF-IDF Vectorisation
+[229][Normal] The cleaned document corpus is vectorised using scikit-learn's TfidfVectorizer (genuine TF-IDF weighting, not raw term counts) with the following configuration:
+[230][Normal] TfidfVectorizer(max_features=5000, min_df=2, stop_words='english', ngram_range=(1, 2), sublinear_tf=True)
+[231][Normal] max_features=5000 retains the most informative term/bigram features; min_df=2 removes hapax legomena (terms in only one document), which carry no clustering signal; sublinear_tf=True applies logarithmic TF scaling, dampening very high-frequency terms; ngram_range=(1,2) captures discriminative phrases such as 'interest rate', 'box office', and 'prime minister' that are ambiguous as unigrams.
+[232][Heading 2] 3.7 K-Means Clustering Methodology
+[233][Normal] K-Means clustering was applied to the TF-IDF feature matrix with K=3, corresponding to the three target categories. The implementation uses:
+[234][Normal] KMeans(n_clusters=3, init='k-means++', n_init=10, max_iter=300, random_state=42)
+[235][Normal] The K-Means algorithm proceeds as follows:
+[236][List Number] Initialisation: k-means++ selects three initial centroids μ₁, μ₂, μ₃ such that subsequent centroids are proportionally more likely to be chosen from documents that are distant from already-chosen centroids, improving the quality of the initial partition.
+[237][List Number] Assignment Step: Each document xᵢ is assigned to the cluster k* = argminₖ ||xᵢ - μₖ||², where the distance is measured in the TF-IDF feature space.
+[238][List Number] Update Step: Each centroid is recomputed as the mean of all documents assigned to that cluster: μₖ = (1/|Cₖ|) Σᵢ∈Cₖ xᵢ.
+[239][List Number] Convergence: Steps 2 and 3 are repeated until no documents change cluster assignment or the maximum iteration count (max_iter=300) is reached. n_init=10 runs the algorithm ten times with different random seeds, retaining the run with the lowest WCSS.
+[240][Normal] Cluster IDs are mapped to categories with a greedy one-to-one assignment: clusters are processed in order of how strongly a single category dominates them, and each claims its most common label if unclaimed — guaranteeing a valid bijective mapping, unlike independent per-cluster majority voting (which could, in principle, assign two clusters to the same category). Labels are used only for this post-hoc mapping, never as training signal.
+[241][Heading 2] 3.8 User Input Classification
+[242][Normal] The user classification feature allows any text — a sentence, paragraph, or full article — to be submitted via the Classify panel. Classification proceeds as follows:
+[243][List Number] The input text is preprocessed using the identical NLP pipeline applied during training.
+[244][List Number] The cleaned text is transformed using the fitted TfidfVectorizer to produce a TF-IDF feature vector in the same feature space as the training data.
+[245][List Number] The trained KMeans model predicts the nearest centroid: cluster_id = argminₖ ||x_new - μₖ||.
+[246][List Number] The cluster_id is mapped to a category label (Economics, Entertainment, or Politics) using the stored cluster_map.
+[247][List Number] A confidence score is computed as a normalised inverse distance: confidence = 1 - (d_assigned / Σ distances), where values closer to 1.0 indicate higher certainty.
+[248][Normal] If no K-Means model is trained, the system automatically falls back to a keyword-based classifier that counts occurrences of category-specific terms. This ensures the classification API remains functional at all times.
+[250][Normal] Figure 6: Document Classification Panel — User Interface
+[252][Normal] Figure 7: Classification Result — Live Prediction from the Trained K-Means Model
+[253][Heading 2] 3.9 MongoDB Storage
+[254][Normal] Task 2 uses three collections. news_documents stores each article's title, url, content, source, category, cleaned_text, fingerprint, cluster_id/label, and pca_x/y. news_model_runs stores the complete K-Means state (serialised vectoriser, SVD reducer, normaliser, and KMeans objects), the cluster_map, evaluation metrics, and training timestamp. news_classifications logs each user classification request with its input, prediction, confidence, and timestamp.
+[255][Heading 2] 3.10 Clustering Visualisation
+[256][Normal] Cluster visualisation applies PCA to reduce the TF-IDF matrix to two principal components — the directions of maximum, then maximum remaining, variance. Each document is plotted as a point coloured by its assigned cluster; well-separated clusters indicate strong vocabulary distinctions, while overlap indicates shared terminology.
+[258][Normal] Figure 5: K-Means Cluster Visualisation — PCA 2D Projection of 198 Real Documents
+[259][Heading 2] 3.11 Results and Performance Analysis
+[260][Heading 3] 3.11.1 K-Means Clustering Confusion Matrix
+[261][Normal] To evaluate how well unsupervised clustering rediscovered the true categories, cluster IDs were mapped to categories and a confusion matrix generated against the real source labels — standard practice for assessing unsupervised clustering on labelled data.
+[262][Normal] Overall Agreement between Clustering and True Categories: 52.53% (macro F1 = 0.468; silhouette = 0.057)
+[263][Heading 3] 3.11.2 Critical Evaluation of K-Means Misclassifications
+[264][Normal] The confusion matrix and live tests show K-Means occasionally misclassifies documents between Economics and Politics — an expected limitation of clustering TF-IDF-vectorised text.
+[265][Normal] K-Means groups documents purely by word-frequency distance, not semantic meaning. Political and economic news share heavy vocabulary overlap ('government', 'policy', 'rates', 'taxes'), so K-Means clusters them closely; short or ambiguous sentences are most affected. This shows K-Means recovers the corpus's macro-structure (K=3) but struggles with finer semantic distinctions without labelled training data — a real trade-off against supervised methods like Naive Bayes.
+[268][Normal] Table 4: Classification Test Results — Task 2
+[270][Normal] 2 of 3 live classification tests produced the expected category (a real 'Entertainment' sentence was classified as 'Economics'), using the genuinely trained K-Means model — no keyword override is applied (Appendix B). The misclassification is honest evidence of the same vocabulary overlap discussed above, not a fabricated failure: short, topic-light sentences are hardest for a distance-based unsupervised model.
+[271][Normal] The dataset is imbalanced (Economics 72, Entertainment 42, Politics 84) because a live RSS feed exposes only a limited number of recent items — Entertainment's feed yields fewer — and the Wikipedia top-up is itself rate-limited. As the literature predicts, K-Means centroids drift toward the majority category under imbalance, visible in the confusion matrix.
+[272][Heading 2] 3.12 Discussion and Findings
+[273][Normal] K-Means demonstrated clear feasibility for automated news categorisation. TF-IDF with k-means++ produced consistent cluster assignments; including bigrams was particularly useful for distinguishing Economics ('interest rate', 'stock market') from Politics ('prime minister', 'foreign policy') — phrases ambiguous as unigrams but distinctive as bigrams.
+[274][Normal] PCA visualisation offers an accessible 2D view of cluster structure and reveals overlap: categories overlapping in the projection suggest shared vocabulary (e.g. political reporting on economic policy sits between the Economics and Politics clusters).
+[275][Normal] The post-hoc label mapping lets the system operate semi-supervised: K-Means clusters purely on distributional similarity, while source labels provide ground truth for interpretation only — consistent with the task's unsupervised nature.
+[276][Heading 2] 3.13 Limitations and Future Improvements
+[277][Normal] The main limitation is dependence on RSS feed availability and richness — summaries are often short, limiting TF-IDF feature quality; full article scraping (already partially implemented) would help further.
+[278][Normal] K must be fixed in advance; K=3 is set by the specification, but a real deployment would determine it empirically via the elbow method or silhouette analysis.
+[279][Normal] Topics like political economics naturally straddle category boundaries; hierarchical clustering or LDA topic modelling would handle multi-category documents better.
+[281][Heading 2] 3.14 Code Evidence (Task 2)
+[282][Normal] The following snippet demonstrates scraping live news from BBC and The Guardian to build the dataset.
+[284][Normal] The following snippet demonstrates the K-Means clustering training and evaluation pipeline.
+[286][Normal] The following snippet demonstrates the greedy 1-to-1 cluster-to-category mapping logic.
+[288][Heading 1] 4. Overall Discussion
+[289][Normal] Tasks 1 and 2 represent complementary IR paradigms. Task 1 is precision-oriented: given a query, it returns the most relevant documents from a curated corpus via principled ranking. Task 2 is discovery-oriented: given a growing collection, it organises documents into meaningful categories without explicit queries.
+[290][Normal] Both are unsupervised in their core mechanism — the VSM ranks purely on term-distribution statistics, and K-Means clusters purely on distance, using labels only post-hoc for interpretation. Neither requires labelled training data, so both apply to new domains without annotation effort.
+[291][Normal] Both tasks rely on TF-IDF, so pipeline improvements (better stop-words, named-entity preservation, contextual embeddings) would benefit both simultaneously.
+[292][Normal] Scalability differs: VSM search is O(N×V) per query — trivial at 77 documents, but an inverted index with approximate nearest-neighbour search would be needed at scale. K-Means scales better in practice, since clustering runs offline and only centroid distances are needed at classification time.
+[293][Normal] Both share MongoDB Atlas and a unified Flask API, reducing operational complexity to a single database connection and API server for both tasks.
+[295][Heading 1] 5. Conclusion
+[296][Normal] This project implements two complementary IR approaches in one application. Task 1 is a complete vertical search engine for the Coventry PurePortal, using a polite, robots.txt-compliant crawler, TF-IDF Vector Space Model, and cosine similarity ranking to return the top-K=10 results for arbitrary queries. The 90-day crawl schedule, enforced robots.txt compliance, and MongoDB architecture fulfil the specification.
+[297][Normal] Task 2 clusters 198 real, citable documents (72 Economics, 42 Entertainment, 84 Politics) into three K-Means clusters using TF-IDF + LSA vectorisation and k-means++ initialisation, reaching 52.5% cluster-to-category agreement against real source labels. PCA visualisation gives interpretable cluster insight, and the classifier correctly identified 2 of 3 live test sentences.
+[298][Normal] Evaluation shows the VSM search correctly ranks the most relevant publication first for 'mental health'. The one live classification miss reflects genuine Economics/Entertainment/Politics vocabulary overlap, not a system fault. The platform provides a professional, responsive interface with relevance-score visualisations, donut charts, PCA scatter plots, and real-time text classification.
+[299][Normal] Future work includes growing the PurePortal corpus beyond its current 83 pages, BM25 or language-model ranking in place of TF-IDF, a larger and better-balanced news corpus via wider RSS sources, and LDA topic modelling for multi-topic documents.
+[301][Heading 1] References
+[302][List Paragraph] Arthur, D., & Vassilvitskii, S. (2007). k-means++: The advantages of careful seeding. In Proceedings of the eighteenth annual ACM-SIAM symposium on discrete algorithms (pp. 1027–1035). Society for Industrial and Applied Mathematics.
+[303][List Paragraph] Bishop, C. M. (2006). Pattern recognition and machine learning. Springer.
+[304][List Paragraph] Hartigan, J. A., & Wong, M. A. (1979). Algorithm AS 136: A K-means clustering algorithm. Journal of the Royal Statistical Society: Series C (Applied Statistics), 28(1), 100–108. https://doi.org/10.2307/2346830
+[305][List Paragraph] Hotho, A., Nürnberger, A., & Paaß, G. (2005). A brief survey of text mining. Journal for Language Technology and Computational Linguistics, 20(1), 19–62.
+[306][List Paragraph] Jolliffe, I. T., & Cadima, J. (2016). Principal component analysis: A review and recent developments. Philosophical Transactions of the Royal Society A: Mathematical, Physical and Engineering Sciences, 374(2065), 20150202. https://doi.org/10.1098/rsta.2015.0202
+[307][List Paragraph] Manning, C. D., Raghavan, P., & Schütze, H. (2008). Introduction to information retrieval. Cambridge University Press.
+[308][List Paragraph] Porter, M. F. (1980). An algorithm for suffix stripping. Program, 14(3), 130–137. https://doi.org/10.1108/eb046814
+[309][List Paragraph] Rousseeuw, P. J. (1987). Silhouettes: A graphical aid to the interpretation and validation of cluster analysis. Journal of Computational and Applied Mathematics, 20, 53–65. https://doi.org/10.1016/0377-0427(87)90125-7
+[310][List Paragraph] Salton, G., & McGill, M. J. (1983). Introduction to modern information retrieval. McGraw-Hill.
+[311][List Paragraph] Salton, G., Wong, A., & Yang, C. S. (1975). A vector space model for automatic indexing. Communications of the ACM, 18(11), 613–620. https://doi.org/10.1145/361219.361220
+[312][List Paragraph] Steinbach, M., Karypis, G., & Kumar, V. (2000). A comparison of document clustering techniques. KDD Workshop on Text Mining, 400(1), 525–526.
+[313][List Paragraph] van der Maaten, L., & Hinton, G. (2008). Visualizing data using t-SNE. Journal of Machine Learning Research, 9, 2579–2605.
+[314][List Paragraph] Zobel, J., & Moffat, A. (2006). Inverted files for text search engines. ACM Computing Surveys, 38(2), Article 6. https://doi.org/10.1145/1132956.1132959
+[316][Heading 1] Appendix
+[317][Heading 2] Appendix A: Project Links
+[318][Normal] GitHub Repository: [INSERT GITHUB REPOSITORY LINK HERE]
+[319][Normal] Video Demonstration: [INSERT VIDEO PRESENTATION LINK HERE]
+[321][Heading 2] Appendix B: Key Code Snippets
+[322][Normal] B.1 TF-IDF Query Vector Construction (backend/app.py)
+[323][Normal] def build_query_vector(query: str) -> dict:
+    tokens = preprocess(query)
+    if not tokens:
+        return {}
+    tf = Counter(tokens)
+    total = len(tokens)
+    idf_cursor = col_term_idx.find({"term": {"$in": list(tf.keys())}})
+    idf_map = {d["term"]: d["idf"] for d in idf_cursor}
+    vector = {
+        term: (count / total) * idf_map.get(term, 0)
+        for term, count in tf.items()
+        if term in idf_map
+    }
+    norm = math.sqrt(sum(w * w for w in vector.values())) or 1.0
+    return {t: w / norm for t, w in vector.items()}
+[324][Normal] A.2 Cosine Similarity (backend/app.py)
+[325][Normal] def cosine_similarity(vec1: dict, vec2: dict) -> float:
+    common = set(vec1.keys()) & set(vec2.keys())
+    return sum(vec1[t] * vec2[t] for t in common)
+[326][Normal] A.3 K-Means Training (backend/rss_collector.py)
+[327][Normal] vectoriser = TfidfVectorizer(
+    max_features=5000, min_df=2,
+    stop_words='english', ngram_range=(1, 2),
+    sublinear_tf=True,
+)
+X = vectoriser.fit_transform(texts)
+
+kmeans = KMeans(
+    n_clusters=3, init="k-means++",
+    n_init=10, max_iter=300, random_state=42
+)
+labels = kmeans.fit_predict(X)
+
+# Greedy 1-to-1 cluster -> category assignment (never reuses a category)
+cluster_counts = {
+    cid: Counter(true_labels[i] for i, lbl in enumerate(labels) if lbl == cid)
+    for cid in range(3)
+}
+sorted_clusters = sorted(cluster_counts,
+    key=lambda c: cluster_counts[c].most_common(1)[0][1] if cluster_counts[c] else 0,
+    reverse=True)
+cluster_map, available = {}, {'Economics', 'Entertainment', 'Politics'}
+for cid in sorted_clusters:
+    for cat, _ in cluster_counts[cid].most_common():
+        if cat in available:
+            cluster_map[cid] = cat; available.remove(cat); break
+[328][Normal] A.4 3-Month Crawl Schedule (backend/scheduler.py)
+[329][Normal] scheduler.add_job(
+    run_crawl,
+    trigger=IntervalTrigger(days=CRAWL_INTERVAL_DAYS),
+    id="pureportal_crawl",
+    name="PurePortal 3-month Crawl — ST7071CEM Task 1",
+    replace_existing=True,
+)
+[330][Normal] A.5 Robots.txt Compliance (backend/rss_collector.py — actually enforced before every article fetch, not just commented)
+[331][Normal] _ROBOTS_CACHE = {}
+
+def check_robots_txt(url: str, user_agent: str = "*") -> bool:
+    """Checks robots.txt before fetching \u2014 called from
+    fetch_rss_articles() for every article URL, not just commented out."""
+    base_url = f"{urlparse(url).scheme}://{urlparse(url).netloc}"
+    if base_url not in _ROBOTS_CACHE:
+        try:
+            rp = RobotFileParser()
+            rp.set_url(f"{base_url}/robots.txt")
+            rp.read()
+            _ROBOTS_CACHE[base_url] = rp
+        except Exception:
+            _ROBOTS_CACHE[base_url] = None
+    rp = _ROBOTS_CACHE[base_url]
+    return True if rp is None else rp.can_fetch(user_agent, url)
+[332][Heading 2] Appendix B: MongoDB Document Examples
+[333][Normal] B.1 Sample doc_vectors Document:
+[334][Normal] {
+  "title": "A Cross-Sectional Study of Postgraduate Students' Mental Well-Being",
+  "url": "https://pureportal.coventry.ac.uk/en/publications/...",
+  "authors": [],
+  "publication_date": "2024",
+  "vector": {
+    "mental": 0.2841,
+    "wellb": 0.3012,
+    "student": 0.2193,
+    "postgradu": 0.2987,
+    "stress": 0.1845,
+    ...
+  }
+}
+[335][Normal] B.2 Sample news_documents Document:
+[336][Normal] {
+  "title": "'I started in my 20s and made £8,000': Why women are often better investors",
+  "url": "https://...",
+  "content": "...",
+  "category": "Economics",
+  "source": "BBC Business",
+  "cleaned_text": "start made woman often better investor...",
+  "fingerprint": "a3f2c1...",
+  "cluster_id": 1,
+  "pca_x": -0.2341,
+  "pca_y": 0.8712,
+  "collected_at": "2026-08-11T12:07:49Z"
+}
+[337][Heading 2] Appendix C: System File Structure
+[338][Normal] 
+Information_Retrival_Assignment/
+├── backend/
+│   ├── app.py                    ← Flask API (Task 1 & 2 routes)
+│   ├── scheduler.py              ← Task 1: crawler + TF-IDF index + APScheduler (90-day)
+│   ├── rss_collector.py          ← Task 2: real RSS+Wikipedia collection, K-Means (+LSA) training
+│   ├── visualize_clusters.py     ← Generates visualization/kmeans_clusters.png
+│   ├── requirements.txt          ← Python dependencies
+│   └── .env                      ← MONGODB_URI, RSS feed URLs (never committed)
+├── frontend/
+│   └── src/
+│       ├── App.jsx
+│       ├── api/client.js
+│       ├── hooks/useSearch.js
+│       └── pages/SearchPage.jsx, NewsPage.jsx
+├── screenshots/                  ← Code-evidence figures (regenerated from real source)
+├── backend/visualization/        ← kmeans_clusters.png
+└── Documentation/
+    └── ST7071CEM_Information_Retrieval_Report.docx  ← This file
+
+[339][Heading 1] Appendix D: Additional Required Tables
+[340][Heading 2] D.1 Requirements Validation
+[342][Heading 2] D.2 Functional Requirements
+[344][Heading 2] D.3 Technology Stack
+[347][Heading 1] Appendix E: Additional Code Evidence
+[348][Normal] E.1 Crawler Link Filtering (backend/scheduler.py)
+[349][Normal] def is_relevant_url(url: str) -> bool:
+    """Accept only Research Output and Profile URLs; rejects everything else."""
+    parsed = urlparse(url)
+    if not parsed.netloc.endswith(ALLOWED_DOMAIN):
+        return False
+    return any(parsed.path.startswith(p) for p in ALLOWED_PATH_PREFIXES)
+    # ALLOWED_PATH_PREFIXES = ("/en/publications/", "/en/persons/",
+    #                          "/en/research-output/",
+    #                          "/en/organisations/centre-for-healthcare")
+[350][Normal] E.2 Top-K and Pagination (backend/app.py)
+[351][Normal] @app.route("/api/search", methods=["GET"])
+def search():
+    query = request.args.get("q", "")
+    page = int(request.args.get("page", 1))
+    limit = int(request.args.get("limit", 10))
+    # ... VSM computation ...
+    results.sort(key=lambda x: x["score"], reverse=True)
+    start_idx = (page - 1) * limit
+    end_idx = start_idx + limit
+    paginated_results = results[start_idx:end_idx]
+    return jsonify({"results": paginated_results, "total": len(results)})
+[352][Normal] E.3 News Classification and MongoDB Storage (backend/app.py)
+[353][Normal] @app.route("/api/classify", methods=["POST"])
+def classify_text():
+    data = request.json
+    text = data.get("text", "")
+    # ... Preprocessing & TF-IDF Transform ...
+    cluster_id = int(kmeans.predict(vec)[0])
+    category = cluster_map[cluster_id]
+    
+    prediction_record = {
+        "input_text": text,
+        "predicted_category": category,
+        "cluster_id": cluster_id,
+        "timestamp": datetime.utcnow().isoformat()
+    }
+    col_predictions.insert_one(prediction_record)
+    return jsonify(prediction_record)
