@@ -4,9 +4,9 @@
 import { useState, useEffect, useRef } from 'react'
 import {
   getNewsStats, getCrawlStatus, classifyText,
-  triggerCollection, getNewsArticles
+  triggerCollection, getNewsArticles, getNewsSuggestions
 } from '../api/client'
-import { TrendingUp, Clapperboard, Landmark, Target, LayoutDashboard, Network, Newspaper } from 'lucide-react'
+import { TrendingUp, Clapperboard, Landmark, Target, LayoutDashboard, Network, Newspaper, Hourglass, RefreshCw, AlertTriangle, AlertCircle } from 'lucide-react'
 import './NewsPage.css'
 
 /* ── Category colours & icons ──────────────────────────────────── */
@@ -51,8 +51,8 @@ function DonutChart({ distribution, total }) {
             style={{ transition: 'stroke-dasharray 0.6s ease' }}
           />
         ))}
-        <text x={C} y={C - 4} textAnchor="middle" fill="#f0f0ff" fontSize="16" fontWeight="700">{total}</text>
-        <text x={C} y={C + 13} textAnchor="middle" fill="#8888bb" fontSize="8">documents</text>
+        <text x={C} y={C - 4} textAnchor="middle" fill="var(--text-primary)" fontSize="16" fontWeight="700">{total}</text>
+        <text x={C} y={C + 13} textAnchor="middle" fill="var(--text-secondary)" fontSize="8">documents</text>
       </svg>
       <div className="donut-legend">
         {cats.map(c => (
@@ -144,6 +144,23 @@ function ClassifierPanel() {
   const [result, setResult]     = useState(null)
   const [loading, setLoading]   = useState(false)
   const [error, setError]       = useState(null)
+  const [history, setHistory]   = useState([])
+
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem('classifierHistory')
+      if (stored) setHistory(JSON.parse(stored))
+    } catch(e) {}
+  }, [])
+
+  const saveToHistory = (textToSave, resultToSave) => {
+    setHistory(prev => {
+      const newItem = { text: textToSave, result: resultToSave, time: Date.now() }
+      const updated = [newItem, ...prev].slice(0, 10)
+      try { localStorage.setItem('classifierHistory', JSON.stringify(updated)) } catch(e) {}
+      return updated
+    })
+  }
 
   const classify = async () => {
     if (!text.trim()) return
@@ -151,6 +168,7 @@ function ClassifierPanel() {
     try {
       const data = await classifyText(text)
       setResult(data)
+      saveToHistory(text, data)
     } catch (e) {
       setError(e?.response?.data?.error || e.message || 'Classification failed')
     } finally {
@@ -161,7 +179,9 @@ function ClassifierPanel() {
   const cat = result?.category
   return (
     <div className="classifier-panel">
-      <h3 className="panel-title">🔮 Classify a Document</h3>
+      <h3 className="panel-title" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+        <Target size={20} style={{ color: 'var(--accent)' }}/> Classify a Document
+      </h3>
       <p className="panel-desc">
         Enter any text — the K-Means model will classify it into Economics, Entertainment, or Politics.
       </p>
@@ -184,7 +204,9 @@ function ClassifierPanel() {
       </button>
 
       {error && (
-        <div className="classify-error" role="alert">⚠️ {error}</div>
+        <div className="classify-error" role="alert" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+          <AlertTriangle size={16} /> {error}
+        </div>
       )}
 
       {result && (
@@ -205,12 +227,28 @@ function ClassifierPanel() {
           </div>
         </div>
       )}
+
+      {history.length > 0 && (
+        <div className="classify-history animate-fadeIn">
+          <h4 className="history-title">Recent Classifications (Last 10)</h4>
+          <ul className="history-list">
+            {history.map((h, i) => (
+              <li key={i} className="history-item" onClick={() => { setText(h.text); setResult(h.result) }}>
+                <div className="history-text">"{h.text.length > 60 ? h.text.slice(0, 60) + '...' : h.text}"</div>
+                <div className="history-cat" style={{ color: CATS[h.result.category]?.hex, background: CATS[h.result.category]?.hex + '1a' }}>
+                  {CATS[h.result.category]?.icon} {h.result.category}
+                </div>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
     </div>
   )
 }
 
 /* ── Articles table ────────────────────────────────────────────── */
-function ArticlesTable({ category }) {
+function ArticlesTable({ category, searchQuery }) {
   const [articles, setArticles] = useState([])
   const [page, setPage]         = useState(1)
   const [pages, setPages]       = useState(1)
@@ -218,56 +256,108 @@ function ArticlesTable({ category }) {
 
   useEffect(() => {
     setLoading(true)
-    getNewsArticles(category, page)
+    getNewsArticles(category, page, searchQuery)
       .then(d => { setArticles(d.articles || []); setPages(d.pages || 1) })
       .catch(() => {})
       .finally(() => setLoading(false))
-  }, [category, page])
+  }, [category, page, searchQuery])
 
   if (loading) return <div className="articles-loading">Loading…</div>
   if (!articles.length) return <div className="articles-empty">No articles found in this category.</div>
 
   return (
     <div className="articles-wrap">
-      <table className="articles-table" role="table" aria-label="News articles">
-        <thead>
-          <tr>
-            <th>#</th>
-            <th>Title</th>
-            <th>Source</th>
-            <th>Category</th>
-            <th>Date</th>
-          </tr>
-        </thead>
-        <tbody>
-          {articles.map((a, i) => {
-            const cat = a.category || category
-            return (
-              <tr key={i}>
-                <td className="art-num">{(page-1)*10 + i + 1}</td>
-                <td>
-                  <a href={a.url} target="_blank" rel="noopener noreferrer" className="art-link">
-                    {a.title}
-                  </a>
-                </td>
-                <td className="art-src">{a.source || '—'}</td>
-                <td>
-                  <span className="cat-badge" style={{ background: CATS[cat]?.hex + '22', color: CATS[cat]?.hex }}>
-                    {CATS[cat]?.icon} {cat}
-                  </span>
-                </td>
-                <td className="art-date">{a.published ? a.published.slice(0,10) : '—'}</td>
-              </tr>
-            )
-          })}
-        </tbody>
-      </table>
+      <div style={{ overflowX: 'auto' }}>
+        <table className="articles-table">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Title</th>
+              <th>Source</th>
+              <th>Category</th>
+              <th>Date</th>
+            </tr>
+          </thead>
+          <tbody>
+            {articles.map((a, i) => {
+              const cat = a.category || category
+              return (
+                <tr key={i}>
+                  <td className="art-num">{(page-1)*10 + i + 1}</td>
+                  <td>
+                    <a href={a.url} target="_blank" rel="noopener noreferrer" className="art-link">
+                      {a.title}
+                    </a>
+                  </td>
+                  <td className="art-src">{a.source || '—'}</td>
+                  <td>
+                    <span className="cat-badge" style={{ background: CATS[cat]?.hex + '22', color: CATS[cat]?.hex }}>
+                      {CATS[cat]?.icon} {cat}
+                    </span>
+                  </td>
+                  <td className="art-date">{a.published ? a.published.slice(0,10) : '—'}</td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+      </div>
       {pages > 1 && (
         <div className="art-pager">
           <button className="page-btn" disabled={page <= 1} onClick={() => setPage(p => p-1)}>‹</button>
           <span>{page} / {pages}</span>
           <button className="page-btn" disabled={page >= pages} onClick={() => setPage(p => p+1)}>›</button>
         </div>
+      )}
+    </div>
+  )
+}
+
+/* ── News Search Bar with Suggestions ────────────────────────────── */
+function NewsSearchBar({ onSearch }) {
+  const [input, setInput] = useState('')
+  const [suggestions, setSuggestions] = useState([])
+
+  const fetchSuggestions = async (q) => {
+    setInput(q)
+    if (!q || q.length < 2) {
+      setSuggestions([])
+      return
+    }
+    try {
+      const data = await getNewsSuggestions(q)
+      setSuggestions(data.suggestions || [])
+    } catch (e) {
+      setSuggestions([])
+    }
+  }
+
+  const handleKeyDown = (e) => {
+    if (e.key === 'Enter') {
+      setSuggestions([])
+      onSearch(input)
+    }
+    if (e.key === 'Escape') setSuggestions([])
+  }
+
+  return (
+    <div className="news-search-wrap">
+      <input
+        type="text"
+        className="news-search-input"
+        placeholder="Search clustered articles..."
+        value={input}
+        onChange={e => fetchSuggestions(e.target.value)}
+        onKeyDown={handleKeyDown}
+      />
+      {suggestions.length > 0 && (
+        <ul className="news-suggestions" role="listbox">
+          {suggestions.map((s, i) => (
+            <li key={i} role="option" onClick={() => { setInput(s); setSuggestions([]); onSearch(s) }}>
+              {s}
+            </li>
+          ))}
+        </ul>
       )}
     </div>
   )
@@ -283,6 +373,7 @@ export default function NewsPage() {
   const [collecting, setCollecting] = useState(false)
   const [collectMsg, setCollectMsg] = useState('')
   const [filterCat, setFilterCat] = useState('')
+  const [searchQuery, setSearchQuery] = useState('')
 
   useEffect(() => {
     getNewsStats().then(d => setStats(d)).catch(() => {})
@@ -302,10 +393,10 @@ export default function NewsPage() {
     setCollectMsg('Running collection & K-Means training…')
     try {
       const res = await triggerCollection()
-      setCollectMsg(`✅ Done! ${res.summary?.new_stored ?? 0} new articles stored.`)
+      setCollectMsg(`Done! ${res.summary?.new_stored ?? 0} new articles stored.`)
       getNewsStats().then(d => setStats(d)).catch(() => {})
     } catch (e) {
-      setCollectMsg(`⚠️ Error: ${e?.response?.data?.message || e.message}`)
+      setCollectMsg(`Error: ${e?.response?.data?.message || e.message}`)
     } finally {
       setCollecting(false)
     }
@@ -320,7 +411,7 @@ export default function NewsPage() {
       {/* Page header */}
       <header className="news-hero">
         <div className="news-hero-inner">
-          <div className="hero-badge animate-fadeUp">📰 K-Means Clustering · K = 3</div>
+
           <h1 className="news-title animate-fadeUp" style={{ animationDelay: '60ms' }}>
             News Document Clustering
           </h1>
@@ -379,6 +470,8 @@ export default function NewsPage() {
                   <dt>Total documents</dt><dd>{model.total_docs ?? '—'}</dd>
                   <dt>Silhouette score</dt>
                   <dd>{model.silhouette != null ? model.silhouette.toFixed(4) : '—'}</dd>
+                  <dt>Accuracy</dt>
+                  <dd>{model.accuracy != null ? (model.accuracy * 100).toFixed(1) + '%' : '—'}</dd>
                   <dt>Trained at</dt>
                   <dd>{model.trained_at ? model.trained_at.slice(0,19).replace('T',' ') : '—'}</dd>
                 </dl>
@@ -386,20 +479,6 @@ export default function NewsPage() {
                 <p className="no-model">No model trained yet. Collect RSS data to train.</p>
               )}
 
-              <div className="collect-section">
-                <button
-                  id="collect-btn"
-                  className="collect-btn"
-                  onClick={handleCollect}
-                  disabled={collecting}
-                >
-                  {collecting ? '⏳ Running…' : '🔄 Collect & Retrain'}
-                </button>
-                {collectMsg && <p className="collect-msg">{collectMsg}</p>}
-                <p className="collect-note">
-                  Fetches RSS feeds, stores ≥150 articles per category, re-trains K-Means.
-                </p>
-              </div>
             </div>
 
             {/* Category distribution bars */}
@@ -440,8 +519,11 @@ export default function NewsPage() {
         {activeTab === 'articles' && (
           <div className="animate-fadeIn">
             <div className="news-card">
-              <div className="articles-header">
-                <h3>News Articles</h3>
+              <div className="articles-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
+                  <h3>News Articles</h3>
+                  <NewsSearchBar onSearch={setSearchQuery} />
+                </div>
                 <div className="filter-row">
                   {['', ...Object.keys(CATS)].map(c => (
                     <button
@@ -453,7 +535,7 @@ export default function NewsPage() {
                   ))}
                 </div>
               </div>
-              <ArticlesTable category={filterCat} />
+              <ArticlesTable category={filterCat} searchQuery={searchQuery} />
             </div>
           </div>
         )}

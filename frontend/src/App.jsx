@@ -41,15 +41,9 @@ export default function App() {
           <NewsPage />
         </div>
 
-        <footer style={{
-          borderTop: '1px solid rgba(255,255,255,0.05)',
-          padding: '18px 24px',
-          textAlign: 'center',
-          fontSize: 12,
-          color: '#4a4a6a',
-        }}>
-          ST7071CEM — Information Retrieval Coursework &nbsp;·&nbsp;
-          Task 1: Vertical Search Engine &nbsp;·&nbsp; Task 2: News Clustering
+        <footer className="app-footer">
+          <div className="footer-content">
+          </div>
         </footer>
       </div>
     </>

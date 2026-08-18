@@ -26,5 +26,8 @@ export const classifyText = (text) =>
 export const triggerCollection = () =>
   api.post('/news/collect').then(r => r.data)
 
-export const getNewsArticles = (category, page = 1) =>
-  api.get('/news/articles', { params: { category, page } }).then(r => r.data)
+export const getNewsArticles = (category, page = 1, q = "") =>
+  api.get('/news/articles', { params: { category, page, q } }).then(r => r.data)
+
+export const getNewsSuggestions = (q) =>
+  api.get('/news/suggest', { params: { q } }).then(r => r.data)

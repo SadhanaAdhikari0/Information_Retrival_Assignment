@@ -3,7 +3,7 @@
    ═══════════════════════════════════════════════════════════════════ */
 import { useState, useRef, useEffect } from 'react'
 import { useSearch } from '../hooks/useSearch'
-import { Calendar, User } from 'lucide-react'
+import { Calendar, User, Search, Database, Users, Clock, Zap, AlertTriangle, AlertCircle } from 'lucide-react'
 import { triggerCrawl } from '../api/client'
 import './SearchPage.css'
 
@@ -127,7 +127,7 @@ function HeroSearch({ query, setQuery, onSearch, suggestions, clearSuggestions, 
   return (
     <div className="hero-search">
       <div className="search-box-wrap">
-        <span className="search-icon-left">🔍</span>
+        <span className="search-icon-left"><Search size={18} /></span>
         <input
           ref={inputRef}
           id="main-search-input"
@@ -214,9 +214,7 @@ export default function SearchPage() {
         <div className="hero-inner">
           {!searched && (
             <>
-              <div className="hero-badge animate-fadeUp">
-                ⚡ Coventry University PurePortal
-              </div>
+
               <h1 className="hero-title animate-fadeUp" style={{ animationDelay: '80ms' }}>
                 Vertical Search Engine
               </h1>
@@ -236,12 +234,18 @@ export default function SearchPage() {
 
           {/* Index stats strip */}
           {crawlStatus && (
-            <div className="stats-strip animate-fadeIn" style={{ animationDelay: '240ms', display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
-              <span>📚 {crawlStatus.raw_pages ?? '—'} Research Publication Index</span>
+            <div className="stats-strip animate-fadeIn" style={{ animationDelay: '240ms', display: 'inline-flex', justifyContent: 'center', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                <Database size={14} /> {crawlStatus.raw_pages ?? '—'} Research Publication Index
+              </span>
               <span className="strip-dot" />
-              <span>👤 {crawlStatus.profiles ?? '—'} Profiles Index</span>
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                <Users size={14} /> {crawlStatus.profiles ?? '—'} Profiles Index
+              </span>
               <span className="strip-dot" />
-              <span>🕐 3-month crawl interval</span>
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                <Clock size={14} /> 3-month crawl interval
+              </span>
             </div>
           )}
         </div>
@@ -261,7 +265,7 @@ export default function SearchPage() {
           {/* Error state */}
           {error && !loading && (
             <div className="state-box state-error" role="alert">
-              <span>⚠️</span>
+              <span className="state-icon"><AlertTriangle size={36} /></span>
               <div>
                 <strong>Search error</strong>
                 <p>{error}</p>
@@ -272,7 +276,7 @@ export default function SearchPage() {
           {/* Empty state */}
           {searched && !loading && !error && results.length === 0 && (
             <div className="state-box state-empty">
-              <span className="state-icon">🔍</span>
+              <span className="state-icon"><AlertCircle size={36} /></span>
               <div>
                 <strong>No results found</strong>
                 <p>Try different keywords or a broader search term.</p>

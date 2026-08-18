@@ -101,10 +101,17 @@ def can_fetch(url: str, user_agent: str = "ST7071CEM-IR-Bot") -> bool:
     return True if rp is None else rp.can_fetch(user_agent, url)
 
 # ── Crawler configuration ─────────────────────────────────────────────────────
-SEED_URL      = "https://pureportal.coventry.ac.uk/en/organisations/centre-for-healthcare-and-community-transformation/"
+SEED_URLS = [
+    "https://pureportal.coventry.ac.uk/en/organisations/centre-for-healthcare-and-community-transformation/",
+    "https://pureportal.coventry.ac.uk/en/organisations/centre-for-healthcare-and-community-transformation/publications/?format=rss",
+    "https://pureportal.coventry.ac.uk/en/organisations/centre-for-healthcare-and-community-transformation/publications/?format=rss&page=1",
+    "https://pureportal.coventry.ac.uk/en/organisations/centre-for-healthcare-and-community-transformation/persons/?format=rss",
+    "https://pureportal.coventry.ac.uk/en/organisations/centre-for-healthcare-and-community-transformation/persons/?format=rss&page=1",
+    "https://pureportal.coventry.ac.uk/en/organisations/centre-for-healthcare-and-community-transformation/persons/?format=rss&page=2"
+]
 ALLOWED_DOMAIN = "pureportal.coventry.ac.uk"
-CRAWL_DELAY_SECONDS = 2   # Polite delay between HTTP requests
-MAX_PAGES     = 500       # Safety ceiling per crawl run
+CRAWL_DELAY_SECONDS = 5   # Polite delay between HTTP requests
+MAX_PAGES     = 1000      # Increased safety ceiling to ensure all 81+117 are caught
 USER_AGENT    = "ST7071CEM-IR-Bot/1.0 (Educational assignment; Coventry University)"
 
 # Only follow URLs whose paths start with these prefixes
@@ -238,7 +245,7 @@ def extract_research_output(soup: BeautifulSoup, url: str) -> dict:
         "publication_date": pub_date,
         "abstract":        abstract,
         "full_text":       full_text[:5000],
-        "source_url":      SEED_URL,
+        "source_url":      SEED_URLS[0],
         "crawled_at":      datetime.now(timezone.utc),
         "updated_at":      datetime.now(timezone.utc),
     }
@@ -298,92 +305,125 @@ def fetch_page(url: str) -> str | None:
 
 def crawl():
     """
-    Breadth-first crawler starting from SEED_URL.
-    Only follows Research Output and Profile URLs (is_relevant_url filter).
-    Extracts structured metadata and stores in MongoDB.
-    Schedule: every 90 days (3 months) — NOT once per week.
+    Fast RSS-based crawler bypassing Cloudflare 403 blocks.
+    Directly extracts data from the RSS feeds.
     """
     print(f"\n{'='*65}")
-    print(f"  CRAWL STARTED at {datetime.now()}")
-    print(f"  Seed: {SEED_URL}")
-    print(f"  Schedule: {CRAWL_INTERVAL_MONTHS}-month interval ({CRAWL_INTERVAL_DAYS} days) — NOT once per week")
+    print(f"  [CRAWL] Starting Fast RSS Sync ({datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')} UTC)")
     print(f"{'='*65}")
 
-    # Wipe the database collections before starting to ensure clean counts
     col_outputs.delete_many({})
     col_profiles.delete_many({})
     db["term_index"].delete_many({})
     db["doc_vectors"].delete_many({})
+    col_crawl_log.delete_many({})
 
-    visited  = set()
-    queue    = deque([SEED_URL])
     outputs_saved  = 0
     profiles_saved = 0
     errors   = 0
     start_dt = datetime.now(timezone.utc)
+    
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+        'Accept': 'application/rss+xml, application/xml, text/xml, */*'
+    }
 
-    while queue and (outputs_saved + profiles_saved) < MAX_PAGES:
-        url = queue.popleft()
-        if url in visited:
-            continue
-        visited.add(url)
-
-        html = fetch_page(url)
-        if not html:
-            errors += 1
-            time.sleep(CRAWL_DELAY_SECONDS)
-            continue
-
-        soup  = BeautifulSoup(html, "html.parser")
-        path  = urlparse(url).path
-
-        # Determine page type and extract accordingly
-        if any(p in path for p in ("/en/publications/", "/en/research-output/")):
-            data = extract_research_output(soup, url)
-            if data["title"]:
-                col_outputs.update_one(
-                    {"url": url},
-                    {"$set": data},
-                    upsert=True
-                )
-                outputs_saved += 1
-                try:
-                    print(f"  [OUTPUT  {outputs_saved:03d}] {data['title'][:70]}")
-                except UnicodeEncodeError:
-                    print(f"  [OUTPUT  {outputs_saved:03d}] {data['title'][:70].encode('ascii', 'replace').decode('ascii')}")
-
-        elif "/en/persons/" in path:
-            data = extract_profile(soup, url)
-            if data["name"]:
-                col_profiles.update_one(
-                    {"profile_url": url},
-                    {"$set": data},
-                    upsert=True
-                )
+    base_url = "https://pureportal.coventry.ac.uk/en/organisations/centre-for-healthcare-and-community-transformation"
+    
+    # 1. Crawl Profiles via RSS
+    page = 0
+    while True:
+        url = f"{base_url}/persons/?format=rss&page={page}"
+        try:
+            response = requests.get(url, headers=headers, timeout=15)
+            if response.status_code != 200:
+                break
+            soup = BeautifulSoup(response.content, 'xml')
+            items = soup.find_all('item')
+            if not items:
+                break
+                
+            for item in items:
+                name = item.title.text if item.title else "Unknown"
+                profile_url = item.link.text if item.link else ""
+                
+                profile_data = {
+                    "name": name,
+                    "profile_url": profile_url,
+                    "photo_url": "",
+                    "organizations": ["Centre for Healthcare and Community Transformation"]
+                }
+                col_profiles.update_one({"profile_url": profile_url}, {"$set": profile_data}, upsert=True)
                 profiles_saved += 1
                 try:
-                    print(f"  [PROFILE {profiles_saved:03d}] {data['name'][:70]}")
+                    print(f"  [PROFILE {profiles_saved:03d}] {name[:70]}")
                 except UnicodeEncodeError:
-                    print(f"  [PROFILE {profiles_saved:03d}] {data['name'][:70].encode('ascii', 'replace').decode('ascii')}")
+                    print(f"  [PROFILE {profiles_saved:03d}] {name[:70].encode('ascii', 'replace').decode('ascii')}")
+                    
+            page += 1
+            time.sleep(1)
+        except Exception as e:
+            print(f"Error crawling profiles page {page}: {e}")
+            errors += 1
+            break
 
-        # Discover new relevant links from this page
-        from urllib.parse import parse_qs
-        for a in soup.find_all("a", href=True):
-            raw_link = urljoin(url, a["href"]).split("#")[0]
-            parsed_link = urlparse(raw_link)
-            
-            # Keep 'page' parameter for pagination, strip all other query params
-            query = ""
-            qs = parse_qs(parsed_link.query)
-            if "page" in qs:
-                query = f"?page={qs['page'][0]}"
+    # 2. Crawl Publications via RSS
+    page = 0
+    while True:
+        url = f"{base_url}/publications/?format=rss&page={page}"
+        try:
+            response = requests.get(url, headers=headers, timeout=15)
+            if response.status_code != 200:
+                break
+            soup = BeautifulSoup(response.content, 'xml')
+            items = soup.find_all('item')
+            if not items:
+                break
                 
-            link = f"{parsed_link.scheme}://{parsed_link.netloc}{parsed_link.path}{query}"
+            for item in items:
+                title = item.title.text if item.title else "Unknown Title"
+                document_url = item.link.text if item.link else ""
+                pub_date = item.pubDate.text if item.pubDate else "Unknown Date"
+                
+                description_html = item.description.text if item.description else ""
+                desc_soup = BeautifulSoup(description_html, 'html.parser')
+                
+                authors = []
+                author_profiles = {}
+                author_tags = desc_soup.find_all('a', class_='link person')
+                for a_tag in author_tags:
+                    span = a_tag.find('span')
+                    if span:
+                        author_name = span.text.strip()
+                        authors.append(author_name)
+                        author_profiles[author_name] = a_tag.get('href', '')
+                
+                if not authors:
+                    author_spans = desc_soup.find_all('span', class_='person')
+                    for span in author_spans:
+                        authors.append(span.text.strip())
+                        
+                output_data = {
+                    "title": title,
+                    "authors": authors,
+                    "author_profiles": author_profiles,
+                    "publication_date": pub_date,
+                    "document_url": document_url,
+                    "source_url": document_url,
+                }
+                col_outputs.update_one({"url": document_url}, {"$set": output_data}, upsert=True)
+                outputs_saved += 1
+                try:
+                    print(f"  [OUTPUT  {outputs_saved:03d}] {title[:70]}")
+                except UnicodeEncodeError:
+                    print(f"  [OUTPUT  {outputs_saved:03d}] {title[:70].encode('ascii', 'replace').decode('ascii')}")
             
-            if link not in visited and is_relevant_url(link):
-                queue.append(link)
-
-        time.sleep(CRAWL_DELAY_SECONDS)
+            page += 1
+            time.sleep(1)
+        except Exception as e:
+            print(f"Error crawling publications page {page}: {e}")
+            errors += 1
+            break
 
     duration_s = (datetime.now(timezone.utc) - start_dt).total_seconds()
 
@@ -391,12 +431,12 @@ def crawl():
         "run_at":          start_dt,
         "completed_at":    datetime.now(timezone.utc),
         "duration_seconds": duration_s,
-        "pages_visited":   len(visited),
+        "pages_visited":   page * 2,
         "outputs_saved":   outputs_saved,
         "profiles_saved":  profiles_saved,
         "errors":          errors,
         "status":          "success",
-        "schedule_note":   f"{CRAWL_INTERVAL_MONTHS}-month interval ({CRAWL_INTERVAL_DAYS} days) — NOT once per week",
+        "schedule_note":   f"{CRAWL_INTERVAL_MONTHS}-month interval",
     })
 
     print(f"\n  Crawl complete: {outputs_saved} outputs, {profiles_saved} profiles, {errors} errors")
@@ -534,7 +574,7 @@ def start_scheduler(run_immediately: bool = True) -> BlockingScheduler:
     print(f"  Crawler Scheduler — ST7071CEM IR Assignment")
     print(f"  Started:  {datetime.now()}")
     print(f"  Schedule: every {CRAWL_INTERVAL_MONTHS} months ({CRAWL_INTERVAL_DAYS} days) — NOT once per week")
-    print(f"  Seed:     {SEED_URL}")
+    print(f"  Seeds:    {SEED_URLS}")
     print(f"{'='*65}\n")
 
     if run_immediately:

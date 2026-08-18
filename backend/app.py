@@ -412,6 +412,7 @@ def api_news_stats():
             "n_clusters":  3,
             "total_docs":  model_doc.get("total_docs", 0),
             "silhouette":  model_doc.get("silhouette_score"),
+            "accuracy":    model_doc.get("accuracy"),
             "method":      "K-Means (K=3, k-means++)",
         }
 
@@ -432,14 +433,36 @@ def api_news_clusters():
     return jsonify({"points": docs})
 
 
+@app.route("/api/news/suggest", methods=["GET"])
+def api_news_suggest():
+    """GET /api/news/suggest?q=<partial> — Autocomplete news titles."""
+    q = request.args.get("q", "").strip()
+    if not q or len(q) < 2:
+        return jsonify({"suggestions": []})
+
+    regex = f".*{re.escape(q)}.*"
+    docs = col_news.find(
+        {"title": {"$regex": regex, "$options": "i"}},
+        {"_id": 0, "title": 1}
+    ).limit(6)
+    
+    return jsonify({"suggestions": [d["title"] for d in docs]})
+
+
 @app.route("/api/news/articles", methods=["GET"])
 def api_news_articles():
-    """GET /api/news/articles?category=Economics&page=1"""
+    """GET /api/news/articles?category=Economics&page=1&q=query"""
     category = request.args.get("category", "").strip()
+    q        = request.args.get("q", "").strip()
     page     = max(1, int(request.args.get("page", 1)))
     per_page = 10
 
-    query = {"category": category} if category else {}
+    query = {}
+    if category:
+        query["category"] = category
+    if q:
+        query["title"] = {"$regex": f".*{re.escape(q)}.*", "$options": "i"}
+
     total = col_news.count_documents(query)
     docs  = list(col_news.find(
         query,
@@ -450,7 +473,7 @@ def api_news_articles():
         "articles": docs,
         "total":    total,
         "page":     page,
-        "pages":    math.ceil(total / per_page) if total else 0,
+        "pages":    math.ceil(total / per_page) if total else 0
     })
 
 
