@@ -1,5 +1,10 @@
 /* ══════════ SearchPage.css ══════════════════════════════════════ */
-
+.search-page.is-empty {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-height: calc(100vh - 160px); /* Centers vertically between nav and footer */
+}
 /* ── Hero ─────────────────────────────────────────────────────── */
 .search-hero {
   padding: 80px 24px 56px;

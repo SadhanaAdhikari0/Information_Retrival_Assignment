@@ -34,15 +34,15 @@ Open a terminal and navigate to the backend folder:
 cd backend
 ```
 
-Ensure you have the required Python libraries installed:
-```bash
-pip install flask flask-cors pymongo beautifulsoup4 requests scikit-learn nltk
-```
+Since a virtual environment is already provided, you can activate it and run the server directly:
 
-Run the Flask server:
+For Windows (PowerShell/CMD):
 ```bash
+.\venv\Scripts\activate
 python app.py
 ```
+*(Alternatively, you can just run `.\venv\Scripts\python.exe app.py`)*
+
 *Note: The server will start on `http://127.0.0.1:5000`.*
 
 ### 2. Start the Frontend (React / Vite)
@@ -61,7 +61,8 @@ Start the development server:
 ```bash
 npm run dev
 ```
-*Note: The frontend will start locally (usually on `http://localhost:5173`). Open this URL in your web browser to use the application.*
+*Note: The frontend will start locally on `http://localhost:3000`. Open this URL in your web browser to use the application.*
+
 
 ---
 

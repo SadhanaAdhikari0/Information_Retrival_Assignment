@@ -41,8 +41,9 @@ export default function App() {
           <NewsPage />
         </div>
 
-        <footer className="app-footer">
-          <div className="footer-content">
+        <footer className="app-footer" style={{ marginTop: 'auto' }}>
+          <div className="footer-content" style={{ textAlign: 'center', padding: '1.5rem', color: 'var(--text-secondary)', fontSize: '0.9rem', borderTop: '1px solid rgba(255,255,255,0.05)' }}>
+            <p style={{ margin: 0 }}>Developed by <span style={{ color: 'var(--c-pol)', fontWeight: 600, letterSpacing: '0.5px' }}>Sadhana Adhikari</span></p>
           </div>
         </footer>
       </div>

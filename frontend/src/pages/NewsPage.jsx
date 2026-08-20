@@ -3,33 +3,38 @@
    ═══════════════════════════════════════════════════════════════════ */
 import { useState, useEffect, useRef } from 'react'
 import {
-  getNewsStats, getCrawlStatus, classifyText,
-  triggerCollection, getNewsArticles, getNewsSuggestions
+  getNewsStats, getCrawlStatus, classifyText, getRecentClassifications, clearRecentClassifications, getClassifySuggestions,
+  triggerCollection, getNewsArticles, getNewsSuggestions, getClusterData
 } from '../api/client'
-import { TrendingUp, Clapperboard, Landmark, Target, LayoutDashboard, Network, Newspaper, Hourglass, RefreshCw, AlertTriangle, AlertCircle } from 'lucide-react'
+import { TrendingUp, Clapperboard, Landmark, Target, LayoutDashboard, Network, Newspaper, Hourglass, RefreshCw, AlertTriangle, AlertCircle, Trash2 } from 'lucide-react'
+import { Chart as ChartJS, LinearScale, PointElement, Tooltip, Legend } from 'chart.js'
+import { Scatter } from 'react-chartjs-2'
+
+ChartJS.register(LinearScale, PointElement, Tooltip, Legend)
+
 import './NewsPage.css'
 
 /* ── Category colours & icons ──────────────────────────────────── */
 const CATS = {
-  Economics:     { color: 'var(--c-econ)',  icon: <TrendingUp size={16} />, hex: '#3b82f6' },
-  Entertainment: { color: 'var(--c-ent)',   icon: <Clapperboard size={16} />, hex: '#a855f7' },
-  Politics:      { color: 'var(--c-pol)',   icon: <Landmark size={16} />, hex: '#10b981' },
+  Economics: { color: '#06b6d4', icon: <TrendingUp size={16} />, hex: '#06b6d4' }, // Cyan
+  Entertainment: { color: '#f59e0b', icon: <Clapperboard size={16} />, hex: '#f59e0b' }, // Orange
+  Politics: { color: '#a855f7', icon: <Landmark size={16} />, hex: '#a855f7' }, // Purple
 }
 
 /* ── Mini donut chart ─────────────────────────────────────────── */
 function DonutChart({ distribution, total }) {
   const cats = Object.keys(CATS)
   const vals = cats.map(c => distribution[c] || 0)
-  const sum  = vals.reduce((a,b) => a+b, 0) || 1
+  const sum = vals.reduce((a, b) => a + b, 0) || 1
 
   let offset = 0
   const R = 48, C = 60
   const circumference = 2 * Math.PI * R
 
   const slices = cats.map((c, i) => {
-    const frac  = vals[i] / sum
-    const dash  = frac * circumference
-    const gap   = circumference - dash
+    const frac = vals[i] / sum
+    const dash = frac * circumference
+    const gap = circumference - dash
     const rotate = offset * 360
     offset += frac
     return { c, frac, dash, gap, rotate }
@@ -67,72 +72,47 @@ function DonutChart({ distribution, total }) {
   )
 }
 
-/* ── PCA Scatter plot ──────────────────────────────────────────── */
+/* ── PCA Scatter plot (2D) ──────────────────────────────────────────── */
 function ScatterPlot({ points }) {
-  const svgRef = useRef(null)
   if (!points || points.length === 0) return (
     <div className="scatter-empty">No cluster data available yet. Run data collection first.</div>
   )
 
-  const xs = points.map(p => p.pca_x)
-  const ys = points.map(p => p.pca_y)
-  const xMin = Math.min(...xs), xMax = Math.max(...xs)
-  const yMin = Math.min(...ys), yMax = Math.max(...ys)
-  const xRange = xMax - xMin || 1
-  const yRange = yMax - yMin || 1
+  const datasets = Object.keys(CATS).map(cat => {
+    const catPoints = points.filter(p => (p.category || 'Economics') === cat)
+    return {
+      label: cat,
+      data: catPoints.map(p => ({ x: p.pca_x, y: p.pca_y, title: p.title || cat })),
+      backgroundColor: CATS[cat].hex,
+      borderColor: CATS[cat].hex,
+      pointRadius: 4,
+      pointHoverRadius: 6,
+    }
+  })
 
-  const W = 520, H = 340, PAD = 30
-  const toSx = x => PAD + ((x - xMin) / xRange) * (W - 2 * PAD)
-  const toSy = y => (H - PAD) - ((y - yMin) / yRange) * (H - 2 * PAD)
+  const options = {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: { position: 'bottom', labels: { color: 'var(--text-secondary)' } },
+      tooltip: {
+        callbacks: {
+          label: (ctx) => ctx.raw.title
+        }
+      }
+    },
+    scales: {
+      x: { title: { display: true, text: 'PCA Component 1', color: 'var(--text-secondary)' }, grid: { color: 'rgba(128,128,128,0.1)' } },
+      y: { title: { display: true, text: 'PCA Component 2', color: 'var(--text-secondary)' }, grid: { color: 'rgba(128,128,128,0.1)' } }
+    }
+  }
 
   return (
-    <div className="scatter-wrap">
-      <svg ref={svgRef} viewBox={`0 0 ${W} ${H}`} className="scatter-svg" role="img" aria-label="K-Means cluster scatter plot">
-        {/* Grid lines */}
-        {[0.25, 0.5, 0.75].map(f => (
-          <g key={f}>
-            <line x1={PAD + f*(W-2*PAD)} y1={PAD} x2={PAD + f*(W-2*PAD)} y2={H-PAD}
-              stroke="rgba(255,255,255,0.04)" strokeWidth="1" />
-            <line x1={PAD} y1={PAD + f*(H-2*PAD)} x2={W-PAD} y2={PAD + f*(H-2*PAD)}
-              stroke="rgba(255,255,255,0.04)" strokeWidth="1" />
-          </g>
-        ))}
-        {/* Points */}
-        {points.map((p, i) => {
-          const cat  = p.category || 'Economics'
-          const info = CATS[cat] || CATS['Economics']
-          return (
-            <circle
-              key={i}
-              cx={toSx(p.pca_x)}
-              cy={toSy(p.pca_y)}
-              r={3.5}
-              fill={info.hex}
-              fillOpacity={0.75}
-              stroke={info.hex}
-              strokeOpacity={0.3}
-              strokeWidth={1}
-            >
-              <title>{p.title || cat}</title>
-            </circle>
-          )
-        })}
-        {/* Axis labels */}
-        <text x={W/2} y={H-4} textAnchor="middle" fill="#4a4a6a" fontSize="9">PCA Component 1</text>
-        <text x={8} y={H/2} textAnchor="middle" fill="#4a4a6a" fontSize="9"
-          transform={`rotate(-90 8 ${H/2})`}>PCA Component 2</text>
-      </svg>
-      <div className="scatter-legend">
-        {Object.entries(CATS).map(([c, info]) => (
-          <span key={c} className="sc-leg-item">
-            <span className="sc-dot" style={{ background: info.hex }} />
-            {info.icon} {c}
-          </span>
-        ))}
-      </div>
-      <p className="scatter-caption">
-        Figure 1. PCA 2D projection of {points.length} news articles into three K-Means clusters (K=3).
-        Each point represents one article. Cluster separation indicates category distinctiveness.
+    <div className="scatter-wrap" style={{ width: '100%', height: '450px' }}>
+      <Scatter data={{ datasets }} options={options} />
+      <p className="scatter-caption" style={{ marginTop: '1rem' }}>
+        PCA 2D projection of {points.length} news articles into three K-Means clusters (K=3).
+        Each point represents one article. The interactive 2D view allows better analysis of cluster separation.
       </p>
     </div>
   )
@@ -140,27 +120,60 @@ function ScatterPlot({ points }) {
 
 /* ── Classifier panel ──────────────────────────────────────────── */
 function ClassifierPanel() {
-  const [text, setText]         = useState('')
-  const [result, setResult]     = useState(null)
-  const [loading, setLoading]   = useState(false)
-  const [error, setError]       = useState(null)
-  const [history, setHistory]   = useState([])
+  const [text, setText] = useState('')
+  const [result, setResult] = useState(null)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState(null)
+  const [history, setHistory] = useState([])
+  const [isRefreshing, setIsRefreshing] = useState(false)
+  const [suggestions, setSuggestions] = useState([])
+
+  const fetchSuggestions = async (val) => {
+    if (!val || val.trim().length === 0) {
+      setSuggestions([])
+      return
+    }
+    try {
+      const data = await getClassifySuggestions(val)
+      setSuggestions(data.suggestions || [])
+    } catch (e) {
+      setSuggestions([])
+    }
+  }
+
+  const handleTextChange = (e) => {
+    const val = e.target.value
+    setText(val)
+    fetchSuggestions(val)
+  }
+
+  const fetchHistory = async () => {
+    setIsRefreshing(true)
+    try {
+      const [data] = await Promise.all([
+        getRecentClassifications(),
+        new Promise(res => setTimeout(res, 600)) // Force delay so spin is visible
+      ])
+      setHistory(data.history || [])
+    } catch (e) {
+      console.error("Failed to load history", e)
+    } finally {
+      setIsRefreshing(false)
+    }
+  }
+
+  const clearHistory = async () => {
+    try {
+      await clearRecentClassifications()
+      setHistory([])
+    } catch (e) {
+      console.error("Failed to clear history", e)
+    }
+  }
 
   useEffect(() => {
-    try {
-      const stored = localStorage.getItem('classifierHistory')
-      if (stored) setHistory(JSON.parse(stored))
-    } catch(e) {}
+    fetchHistory()
   }, [])
-
-  const saveToHistory = (textToSave, resultToSave) => {
-    setHistory(prev => {
-      const newItem = { text: textToSave, result: resultToSave, time: Date.now() }
-      const updated = [newItem, ...prev].slice(0, 10)
-      try { localStorage.setItem('classifierHistory', JSON.stringify(updated)) } catch(e) {}
-      return updated
-    })
-  }
 
   const classify = async () => {
     if (!text.trim()) return
@@ -168,7 +181,7 @@ function ClassifierPanel() {
     try {
       const data = await classifyText(text)
       setResult(data)
-      saveToHistory(text, data)
+      await fetchHistory()
     } catch (e) {
       setError(e?.response?.data?.error || e.message || 'Classification failed')
     } finally {
@@ -180,28 +193,71 @@ function ClassifierPanel() {
   return (
     <div className="classifier-panel">
       <h3 className="panel-title" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-        <Target size={20} style={{ color: 'var(--accent)' }}/> Classify a Document
+        <Target size={20} style={{ color: 'var(--accent)' }} /> Classify a Document
       </h3>
       <p className="panel-desc">
         Enter any text — the K-Means model will classify it into Economics, Entertainment, or Politics.
       </p>
-      <textarea
-        id="classify-textarea"
-        className="classify-input"
-        value={text}
-        onChange={e => setText(e.target.value)}
-        placeholder="Paste a sentence, paragraph, or news article…"
-        rows={5}
-        aria-label="Text to classify"
-      />
-      <button
-        id="classify-btn"
-        className="classify-btn"
-        onClick={classify}
-        disabled={loading || !text.trim()}
-      >
-        {loading ? 'Classifying…' : 'Classify Text'}
-      </button>
+      <div style={{ position: 'relative' }}>
+        <textarea
+          id="classify-textarea"
+          className="classify-input"
+          value={text}
+          onChange={handleTextChange}
+          placeholder="Paste a sentence, paragraph, or news article…"
+          rows={5}
+          aria-label="Text to classify"
+        />
+        {suggestions.length > 0 && (
+          <div className="suggest-popup" style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: '6px', marginTop: '4px', zIndex: 9999, boxShadow: '0 8px 24px rgba(0,0,0,0.12)' }}>
+            {suggestions.map((s, idx) => (
+              <div key={idx} style={{ padding: '10px 12px', borderBottom: idx === suggestions.length - 1 ? 'none' : '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px' }}>
+                <div
+                  style={{ flex: 1, cursor: 'pointer', fontSize: '13px', color: 'var(--text-secondary)' }}
+                  onClick={() => { setText(s); setSuggestions([]) }}
+                >
+                  {s.length > 60 ? s.slice(0, 60) + '...' : s}
+                </div>
+                <div style={{ display: 'flex', gap: '6px' }}>
+                  <button
+                    className="btn-ghost"
+                    style={{ fontSize: '11px', padding: '4px 8px', background: 'var(--bg-inset)' }}
+                    onClick={() => { setText(s); setSuggestions([]) }}
+                  >
+                    Select
+                  </button>
+                  <button
+                    className="btn-ghost"
+                    style={{ fontSize: '11px', padding: '4px 8px', color: 'var(--c-ent)', background: 'var(--bg-inset)' }}
+                    onClick={() => setSuggestions(suggestions.filter(sg => sg !== s))}
+                  >
+                    Reject
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+      <div style={{ display: 'flex', gap: '12px', justifyContent: 'center', marginTop: '12px', flexWrap: 'wrap' }}>
+        <button
+          id="classify-btn"
+          className="classify-btn"
+          style={{ flex: 1, minWidth: '140px', maxWidth: '200px', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px' }}
+          onClick={classify}
+          disabled={loading || !text.trim()}
+        >
+          {loading ? <Hourglass size={16} /> : <Target size={16} />}
+          {loading ? 'Classifying…' : 'Classify Text'}
+        </button>
+        <button
+          className="clear-btn"
+          onClick={() => { setText(''); setResult(null); setError(null) }}
+          style={{ flex: 1, minWidth: '140px', maxWidth: '200px', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px' }}
+        >
+          <Trash2 size={16} /> Clear
+        </button>
+      </div>
 
       {error && (
         <div className="classify-error" role="alert" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
@@ -230,7 +286,28 @@ function ClassifierPanel() {
 
       {history.length > 0 && (
         <div className="classify-history animate-fadeIn">
-          <h4 className="history-title">Recent Classifications (Last 10)</h4>
+          <div className="history-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+            <h4 className="history-title" style={{ margin: 0 }}>Recent Classifications (Last 10)</h4>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <button
+                onClick={fetchHistory}
+                className="btn-ghost"
+                style={{ padding: '4px 8px', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '4px' }}
+                title="Refresh history"
+                disabled={isRefreshing}
+              >
+                <RefreshCw size={14} style={{ animation: isRefreshing ? 'spin 1s linear infinite' : 'none', transformOrigin: 'center' }} /> Refresh
+              </button>
+              <button
+                onClick={clearHistory}
+                className="btn-ghost"
+                style={{ padding: '4px 8px', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '4px', color: 'var(--c-ent)' }}
+                title="Clear all history"
+              >
+                <Trash2 size={14} /> Clear
+              </button>
+            </div>
+          </div>
           <ul className="history-list">
             {history.map((h, i) => (
               <li key={i} className="history-item" onClick={() => { setText(h.text); setResult(h.result) }}>
@@ -250,15 +327,15 @@ function ClassifierPanel() {
 /* ── Articles table ────────────────────────────────────────────── */
 function ArticlesTable({ category, searchQuery }) {
   const [articles, setArticles] = useState([])
-  const [page, setPage]         = useState(1)
-  const [pages, setPages]       = useState(1)
-  const [loading, setLoading]   = useState(false)
+  const [page, setPage] = useState(1)
+  const [pages, setPages] = useState(1)
+  const [loading, setLoading] = useState(false)
 
   useEffect(() => {
     setLoading(true)
     getNewsArticles(category, page, searchQuery)
       .then(d => { setArticles(d.articles || []); setPages(d.pages || 1) })
-      .catch(() => {})
+      .catch(() => { })
       .finally(() => setLoading(false))
   }, [category, page, searchQuery])
 
@@ -283,7 +360,7 @@ function ArticlesTable({ category, searchQuery }) {
               const cat = a.category || category
               return (
                 <tr key={i}>
-                  <td className="art-num">{(page-1)*10 + i + 1}</td>
+                  <td className="art-num">{(page - 1) * 10 + i + 1}</td>
                   <td>
                     <a href={a.url} target="_blank" rel="noopener noreferrer" className="art-link">
                       {a.title}
@@ -295,7 +372,7 @@ function ArticlesTable({ category, searchQuery }) {
                       {CATS[cat]?.icon} {cat}
                     </span>
                   </td>
-                  <td className="art-date">{a.published ? a.published.slice(0,10) : '—'}</td>
+                  <td className="art-date">{a.published ? a.published.slice(0, 10) : '—'}</td>
                 </tr>
               )
             })}
@@ -304,9 +381,9 @@ function ArticlesTable({ category, searchQuery }) {
       </div>
       {pages > 1 && (
         <div className="art-pager">
-          <button className="page-btn" disabled={page <= 1} onClick={() => setPage(p => p-1)}>‹</button>
+          <button className="page-btn" disabled={page <= 1} onClick={() => setPage(p => p - 1)}>‹</button>
           <span>{page} / {pages}</span>
-          <button className="page-btn" disabled={page >= pages} onClick={() => setPage(p => p+1)}>›</button>
+          <button className="page-btn" disabled={page >= pages} onClick={() => setPage(p => p + 1)}>›</button>
         </div>
       )}
     </div>
@@ -367,8 +444,8 @@ function NewsSearchBar({ onSearch }) {
    Main NewsPage component
    ══════════════════════════════════════════════════════════════ */
 export default function NewsPage() {
-  const [stats, setStats]       = useState(null)
-  const [points, setPoints]     = useState([])
+  const [stats, setStats] = useState(null)
+  const [clusterPoints, setClusterPoints] = useState([])
   const [activeTab, setActiveTab] = useState('overview')
   const [collecting, setCollecting] = useState(false)
   const [collectMsg, setCollectMsg] = useState('')
@@ -376,15 +453,13 @@ export default function NewsPage() {
   const [searchQuery, setSearchQuery] = useState('')
 
   useEffect(() => {
-    getNewsStats().then(d => setStats(d)).catch(() => {})
-    getCrawlStatus().then(() => {}).catch(() => {})
+    getNewsStats().then(d => setStats(d)).catch(() => { })
+    getCrawlStatus().then(() => { }).catch(() => { })
   }, [])
 
   useEffect(() => {
     if (activeTab === 'clusters') {
-      import('../api/client').then(({ getCrawlStatus, getClusterData }) => {
-        getClusterData().then(d => setPoints(d.points || [])).catch(() => {})
-      })
+      getClusterData().then(d => setClusterPoints(d.points || [])).catch(() => { })
     }
   }, [activeTab])
 
@@ -394,7 +469,7 @@ export default function NewsPage() {
     try {
       const res = await triggerCollection()
       setCollectMsg(`Done! ${res.summary?.new_stored ?? 0} new articles stored.`)
-      getNewsStats().then(d => setStats(d)).catch(() => {})
+      getNewsStats().then(d => setStats(d)).catch(() => { })
     } catch (e) {
       setCollectMsg(`Error: ${e?.response?.data?.message || e.message}`)
     } finally {
@@ -402,9 +477,9 @@ export default function NewsPage() {
     }
   }
 
-  const dist  = stats?.distribution || {}
-  const total = stats?.total        || 0
-  const model = stats?.model        || {}
+  const dist = stats?.distribution || {}
+  const total = stats?.total || 0
+  const model = stats?.model || {}
 
   return (
     <div className="news-page">
@@ -432,120 +507,101 @@ export default function NewsPage() {
         </div>
       </header>
 
-      {/* Sub-navigation */}
-      <div className="news-subnav">
-        {[
-          { key: 'overview',  label: <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><LayoutDashboard size={16} /> Overview</span>   },
-          { key: 'classify',  label: <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><Target size={16} /> Classify</span>   },
-          { key: 'clusters',  label: <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><Network size={16} /> Clusters</span>   },
-          { key: 'articles',  label: <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><Newspaper size={16} /> Articles</span>   },
-        ].map(({ key, label }) => (
-          <button
-            key={key}
-            id={`news-tab-${key}`}
-            className={`subnav-btn ${activeTab === key ? 'active' : ''}`}
-            onClick={() => setActiveTab(key)}
-          >{label}</button>
-        ))}
+      <div className="news-subnav-wrap" style={{ display: 'flex', justifyContent: 'center', padding: '24px' }}>
+        <div className="news-subnav">
+          {[
+            { key: 'overview', label: <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><LayoutDashboard size={16} /> Overview</span> },
+            { key: 'classify', label: <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><Target size={16} /> Classify</span> },
+            { key: 'clusters', label: <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><Network size={16} /> Clusters</span> },
+            { key: 'articles', label: <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><Newspaper size={16} /> Articles</span> },
+          ].map(({ key, label }) => (
+            <button
+              key={key}
+              id={`news-tab-${key}`}
+              className={`subnav-btn ${activeTab === key ? 'active' : ''}`}
+              onClick={() => setActiveTab(key)}
+            >{label}</button>
+          ))}
+        </div>
       </div>
 
       <main className="news-main">
 
-        {/* ── OVERVIEW ── */}
-        {activeTab === 'overview' && (
-          <div className="overview-grid animate-fadeIn">
-            {/* Donut chart */}
-            <div className="news-card">
-              <h3>Cluster Distribution</h3>
-              <DonutChart distribution={dist} total={total} />
+          {/* ── OVERVIEW ── */}
+          {activeTab === 'overview' && (
+            <div className="overview-grid animate-fadeIn">
+              {/* Donut chart */}
+              <div className="news-card">
+                <h3>Cluster Distribution</h3>
+                <DonutChart distribution={dist} total={total} />
+              </div>
+
+              {/* Model info */}
+              <div className="news-card">
+                <h3>Model Information</h3>
+                {model.method ? (
+                  <dl className="model-dl">
+                    <dt>Algorithm</dt><dd>{model.method}</dd>
+                    <dt>Clusters (K)</dt><dd>3</dd>
+                    <dt>Total documents</dt><dd>{model.total_docs ?? '—'}</dd>
+                    <dt>Silhouette score</dt>
+                    <dd>{model.silhouette != null ? model.silhouette.toFixed(4) : '—'}</dd>
+                    <dt>Accuracy</dt>
+                    <dd>{model.accuracy != null ? (model.accuracy * 100).toFixed(1) + '%' : '—'}</dd>
+                    <dt>Trained at</dt>
+                    <dd>{model.trained_at ? model.trained_at.slice(0, 19).replace('T', ' ') : '—'}</dd>
+                  </dl>
+                ) : (
+                  <p className="no-model">No model trained yet. Collect RSS data to train.</p>
+                )}
+
+              </div>
+
+
             </div>
+          )}
 
-            {/* Model info */}
-            <div className="news-card">
-              <h3>Model Information</h3>
-              {model.method ? (
-                <dl className="model-dl">
-                  <dt>Algorithm</dt><dd>{model.method}</dd>
-                  <dt>Clusters (K)</dt><dd>3</dd>
-                  <dt>Total documents</dt><dd>{model.total_docs ?? '—'}</dd>
-                  <dt>Silhouette score</dt>
-                  <dd>{model.silhouette != null ? model.silhouette.toFixed(4) : '—'}</dd>
-                  <dt>Accuracy</dt>
-                  <dd>{model.accuracy != null ? (model.accuracy * 100).toFixed(1) + '%' : '—'}</dd>
-                  <dt>Trained at</dt>
-                  <dd>{model.trained_at ? model.trained_at.slice(0,19).replace('T',' ') : '—'}</dd>
-                </dl>
-              ) : (
-                <p className="no-model">No model trained yet. Collect RSS data to train.</p>
-              )}
-
-            </div>
-
-            {/* Category distribution bars */}
-            <div className="news-card span-2">
-              <h3>Category Distribution</h3>
-              <div className="dist-bars">
-                {Object.entries(CATS).map(([cat, info]) => {
-                  const count = dist[cat] || 0
-                  const pct   = total > 0 ? (count / total) * 100 : 0
-                  return (
-                    <div key={cat} className="dist-row">
-                      <span className="dist-label">{info.icon} {cat}</span>
-                      <div className="dist-track">
-                        <div className="dist-fill"
-                          style={{ width: `${pct}%`, background: info.hex }} />
-                      </div>
-                      <span className="dist-count">{count}</span>
-                      <span className="dist-pct">({pct.toFixed(1)}%)</span>
-                    </div>
-                  )
-                })}
+          {/* ── CLUSTERS ── */}
+          {activeTab === 'clusters' && (
+            <div className="animate-fadeIn" style={{ maxWidth: '700px', margin: '0 auto' }}>
+              <div className="news-card">
+                <h3>K-Means Cluster Visualisation (PCA 2D Projection)</h3>
+                <ScatterPlot points={clusterPoints} />
               </div>
             </div>
-          </div>
-        )}
+          )}
 
-        {/* ── CLUSTERS ── */}
-        {activeTab === 'clusters' && (
-          <div className="animate-fadeIn">
-            <div className="news-card">
-              <h3>K-Means Cluster Visualisation (PCA 2D Projection)</h3>
-              <ScatterPlot points={points} />
-            </div>
-          </div>
-        )}
-
-        {/* ── ARTICLES ── */}
-        {activeTab === 'articles' && (
-          <div className="animate-fadeIn">
-            <div className="news-card">
-              <div className="articles-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
-                  <h3>News Articles</h3>
-                  <NewsSearchBar onSearch={setSearchQuery} />
+          {/* ── ARTICLES ── */}
+          {activeTab === 'articles' && (
+            <div className="animate-fadeIn">
+              <div className="news-card">
+                <div className="articles-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
+                    <h3>News Articles</h3>
+                    <NewsSearchBar onSearch={setSearchQuery} />
+                  </div>
+                  <div className="filter-row">
+                    {['', ...Object.keys(CATS)].map(c => (
+                      <button
+                        key={c || 'all'}
+                        className={`filter-btn ${filterCat === c ? 'active' : ''}`}
+                        style={filterCat === c && c ? { borderColor: CATS[c]?.hex, color: CATS[c]?.hex } : {}}
+                        onClick={() => setFilterCat(c)}
+                      >{c || 'All'}</button>
+                    ))}
+                  </div>
                 </div>
-                <div className="filter-row">
-                  {['', ...Object.keys(CATS)].map(c => (
-                    <button
-                      key={c || 'all'}
-                      className={`filter-btn ${filterCat === c ? 'active' : ''}`}
-                      style={filterCat === c && c ? { borderColor: CATS[c]?.hex, color: CATS[c]?.hex } : {}}
-                      onClick={() => setFilterCat(c)}
-                    >{c || 'All'}</button>
-                  ))}
-                </div>
+                <ArticlesTable category={filterCat} searchQuery={searchQuery} />
               </div>
-              <ArticlesTable category={filterCat} searchQuery={searchQuery} />
             </div>
-          </div>
-        )}
+          )}
 
-        {/* ── CLASSIFY ── */}
-        {activeTab === 'classify' && (
-          <div className="animate-fadeIn">
-            <ClassifierPanel />
-          </div>
-        )}
+          {/* ── CLASSIFY ── */}
+          {activeTab === 'classify' && (
+            <div className="animate-fadeIn">
+              <ClassifierPanel />
+            </div>
+          )}
       </main>
     </div>
   )

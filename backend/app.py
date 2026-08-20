@@ -194,17 +194,20 @@ def api_search():
 
 @app.route("/api/suggestions", methods=["GET"])
 def api_suggestions():
-    """GET /api/suggestions?q=<partial>  — Autocomplete from term index."""
-    q = request.args.get("q", "").strip().lower()
+    """GET /api/suggestions?q=<partial>  — Autocomplete from document titles."""
+    q = request.args.get("q", "").strip()
     if not q or len(q) < 2:
         return jsonify({"suggestions": []})
 
-    regex = f"^{re.escape(q)}"
-    docs  = col_term_idx.find(
-        {"term": {"$regex": regex, "$options": "i"}},
-        {"_id": 0, "term": 1}
+    regex = f".*{re.escape(q)}.*"
+    docs  = col_doc_vecs.find(
+        {"title": {"$regex": regex, "$options": "i"}},
+        {"_id": 0, "title": 1}
     ).limit(6)
-    return jsonify({"suggestions": [d["term"] for d in docs]})
+    
+    # Filter out missing titles
+    suggestions = [d["title"] for d in docs if d.get("title")]
+    return jsonify({"suggestions": suggestions})
 
 
 @app.route("/api/crawl-status", methods=["GET"])
@@ -272,27 +275,22 @@ KEYWORD_CLASSIFIER = {
         "economy", "economic", "market", "stock", "gdp", "finance", "financial",
         "trade", "inflation", "budget", "investment", "bank", "banking", "currency",
         "revenue", "profit", "loss", "recession", "growth", "fiscal", "monetary",
-        "interest", "rate", "debt", "tax", "tariff", "export", "import", "wage",
-        "employment", "unemployment", "bond", "hedge", "fund", "equity", "commodity",
-        "oil", "price", "retail", "consumer", "spending", "treasury", "federal",
-        "reserve", "corporate", "startup", "venture", "capital", "billion", "million",
-        "quarter", "earnings", "dividend", "nasdaq", "dow", "ftse", "crypto",
-        "bitcoin", "blockchain", "insurance", "mortgage", "loan", "credit"
+        "economics", "economy", "market", "stock", "trade", "finance", "business", "bank",
+        "investment", "investor", "revenue", "profit", "loss", "tax", "inflation",
+        "currency", "gdp", "economic", "wall street", "corporate", "shareholder",
+        "dividend", "ceo", "company", "merger", "acquisition", "debt", "budget",
+        "recession", "interest rate", "startup", "entrepreneur", "retail", "consumer"
     ],
     "Entertainment": [
-        "movie", "film", "cinema", "actor", "actress", "director", "hollywood",
-        "music", "song", "album", "concert", "singer", "band", "pop", "rock",
-        "celebrity", "award", "oscar", "grammy", "bafta", "emmy", "golden",
-        "television", "series", "show", "episode", "streaming", "netflix",
-        "disney", "hbo", "amazon", "prime", "spotify", "youtube", "viral",
-        "trending", "famous", "star", "red carpet", "premiere", "trailer",
-        "sequel", "box office", "chart", "record", "tour", "festival",
+        "entertainment", "movie", "film", "hollywood", "actor", "actress", "director", "cinema",
+        "music", "singer", "album", "song", "concert", "pop", "rock", "hip hop",
+        "celebrity", "star", "award", "oscar", "grammy", "television", "show", "series",
         "comedy", "drama", "thriller", "animation", "documentary", "reality",
         "fashion", "model", "influencer", "instagram", "tiktok", "social media",
         "game", "gaming", "esports", "sports", "footballer", "athlete", "team"
     ],
     "Politics": [
-        "government", "political", "president", "prime minister", "parliament",
+        "politics", "government", "political", "president", "prime minister", "parliament",
         "congress", "senate", "election", "vote", "voting", "democracy",
         "republican", "democrat", "conservative", "liberal", "party", "policy",
         "law", "legislation", "bill", "amendment", "constitution", "minister",
@@ -428,7 +426,7 @@ def api_news_clusters():
     """GET /api/news/clusters — PCA 2D points for scatter chart."""
     docs = list(col_news.find(
         {"pca_x": {"$exists": True}},
-        {"_id": 0, "pca_x": 1, "pca_y": 1, "category": 1, "title": 1}
+        {"_id": 0, "pca_x": 1, "pca_y": 1, "pca_z": 1, "category": 1, "title": 1}
     ).limit(400))
     return jsonify({"points": docs})
 
@@ -492,10 +490,16 @@ def api_news_classify():
     if not text:
         return jsonify({"error": "No text provided"}), 400
 
-    # Try K-Means first, fall back to keyword classifier
-    result = kmeans_classify(text)
-    if result is None:
-        result = keyword_classify(text)
+    # To ensure flawless demonstration when typing explicit category names,
+    # we first check the keyword classifier. If it finds a strong match 
+    # (e.g. typing "politics"), we use it. Otherwise, we use the K-Means ML model.
+    keyword_res = keyword_classify(text)
+    if keyword_res and keyword_res["category"] != "Unknown" and keyword_res["confidence"] > 0.4:
+        result = keyword_res
+    else:
+        result = kmeans_classify(text)
+        if result is None:
+            result = keyword_res
 
     # Persist classification result
     col_news_cls.insert_one({
@@ -513,6 +517,45 @@ def api_news_classify():
         "method":     result.get("method"),
         "text":       text[:200],
     })
+
+
+@app.route("/api/news/classify/history", methods=["GET"])
+def api_news_classify_history():
+    """GET /api/news/classify/history — Returns 10 most recent classifications from DB."""
+    recent_docs = list(col_news_cls.find().sort("classified_at", -1).limit(10))
+    history = []
+    for doc in recent_docs:
+        history.append({
+            "text": doc.get("input_text", ""),
+            "result": {
+                "category": doc.get("category"),
+                "confidence": doc.get("confidence"),
+                "method": doc.get("method")
+            },
+            "time": doc.get("classified_at").isoformat() if doc.get("classified_at") else None
+        })
+    return jsonify({"history": history})
+
+@app.route("/api/news/classify/suggest", methods=["GET"])
+def api_news_classify_suggest():
+    """GET /api/news/classify/suggest?q=... — Returns matching past classifications."""
+    q = request.args.get("q", "").strip()
+    if not q:
+        return jsonify({"suggestions": []})
+    
+    docs = list(col_news_cls.find({"input_text": {"$regex": q, "$options": "i"}}).limit(5))
+    suggestions = []
+    for doc in docs:
+        if "input_text" in doc and doc["input_text"] not in suggestions:
+            suggestions.append(doc["input_text"])
+            
+    return jsonify({"suggestions": suggestions})
+
+@app.route("/api/news/classify/history", methods=["DELETE"])
+def api_news_classify_history_clear():
+    """DELETE /api/news/classify/history — Clears all classification history."""
+    col_news_cls.delete_many({})
+    return jsonify({"status": "success", "message": "History cleared"})
 
 
 @app.route("/api/news/collect", methods=["POST"])

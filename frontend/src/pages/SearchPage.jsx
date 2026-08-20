@@ -207,7 +207,7 @@ export default function SearchPage() {
   }, [])
 
   return (
-    <div className="search-page">
+    <div className={`search-page ${searched ? 'has-searched' : 'is-empty'}`}>
 
       {/* Hero banner */}
       <header className={`search-hero ${searched ? 'compact' : ''}`}>

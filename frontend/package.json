@@ -15,9 +15,11 @@
     "chart.js": "^4.5.1",
     "framer-motion": "^13.1.0",
     "lucide-react": "^1.31.0",
+    "plotly.js": "^2.35.2",
     "react": "^19.2.8",
     "react-chartjs-2": "^5.3.1",
     "react-dom": "^19.2.8",
+    "react-plotly.js": "^2.6.0",
     "react-router-dom": "^7.18.2"
   },
   "devDependencies": {

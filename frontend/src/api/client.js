@@ -23,6 +23,15 @@ export const getClusterData = () =>
 export const classifyText = (text) =>
   api.post('/news/classify', { text }).then(r => r.data)
 
+export const getRecentClassifications = () =>
+  api.get('/news/classify/history').then(r => r.data)
+
+export const getClassifySuggestions = (q) =>
+  api.get('/news/classify/suggest', { params: { q } }).then(r => r.data)
+
+export const clearRecentClassifications = () =>
+  api.delete('/news/classify/history').then(r => r.data)
+
 export const triggerCollection = () =>
   api.post('/news/collect').then(r => r.data)
 
