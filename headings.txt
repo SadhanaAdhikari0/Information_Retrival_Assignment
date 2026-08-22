@@ -1,0 +1,178 @@
+2: ST7071CEM — Information Retrieval
+3: Coursework: Vertical Search Engine and News Document Clustering
+6: Module:  ST7071CEM — Information Retrieval
+7: Module Leader:  Coventry University
+8: Submission:  2026
+9: Word Count:  ≤ 2,500 words (main body)
+11: Abstract
+17: Table of Contents
+18: Abstract	2
+19: Table of Contents	3
+20: List of Figures	4
+21: List of Abbreviations	5
+22: Conceptual System Diagram	6
+23: 1. Introduction	7
+24: 2. Task 1 — Vertical Search Engine	8
+25: 2.1 Introduction and Problem Statement	8
+26: 2.2 Objectives	8
+27: 2.3 System Architecture	9
+28: 2.4 Web Crawler Component	9
+29: 2.5 Scheduling and Automation	10
+30: 2.6 Data Collection and MongoDB Storage	11
+31: 2.7 Text Preprocessing Pipeline	12
+32: 2.8 Vector Space Model	13
+33: 2.9 Cosine Similarity and Ranking	14
+34: 2.10 Query Processing	15
+35: 2.11 Top-K Search and Pagination	15
+36: 2.12 Search Interface	16
+37: 2.13 Evaluation and Testing	17
+38: 2.14 Limitations and Improvements	19
+39: 3. Task 2 — News Document Clustering	20
+40: 3.1 Problem Statement	20
+41: 3.2 Objectives	20
+42: 3.3 Literature Review and Theoretical Foundation	21
+43: 3.4 Dataset and Data Engineering	22
+44: 3.5 Text Preprocessing and Feature Engineering	23
+45: 3.6 TF-IDF Vectorisation	23
+46: 3.7 K-Means Clustering Methodology	24
+47: 3.8 User Input Classification	25
+48: 3.9 MongoDB Storage	26
+49: 3.10 Clustering Visualisation	26
+50: 3.11 Results and Performance Analysis	27
+51: 3.12 Discussion and Findings	28
+52: 3.13 Limitations and Future Improvements	29
+53: 4. Overall Discussion	30
+54: 5. Conclusion	31
+55: References	32
+56: Appendix	34
+58: List of Figures
+59: Figure 1:	IR Research Platform — Vertical Search Engine Home Page
+60: Figure 2:	Conceptual System Architecture Diagram
+61: Figure 3:	Search Results for Query 'mental health' with Cosine Similarity Scores
+62: Figure 4:	News Document Clustering — Overview Dashboard
+63: Figure 5:	K-Means Cluster Visualisation — PCA 2D Projection of 527 Real Documents
+64: Figure 6:	Document Classification Panel
+65: Figure 7:	Classification Result — Economics Category Identified
+66: Figure 8:	Robots.txt Parser Implementation with Custom User-Agent
+68: List of Abbreviations
+71: Conceptual System Diagram
+75: Figure 2: Conceptual System Architecture — ST7071CEM IR Research Platform
+77: 1. Introduction
+83: Figure 1: IR Research Platform — Vertical Search Engine Home Page
+85: 2. Task 1 — Vertical Search Engine
+86: 2.1 Introduction and Problem Statement
+89: 2.2 Objectives
+92: Store collected data in a structured MongoDB Atlas database.
+94: Build a TF-IDF Vector Space Model over the collected documents (Salton et al., 1975).
+95: Implement cosine similarity ranking to return the top-K=10 most relevant results per query.
+97: Include clickable publication titles and clickable researcher profile links where available.
+98: 2.3 System Architecture
+100: 2.4 Web Crawler Component
+106: 2.4.1 Ethical Web Crawling and Robots.txt Parsing
+109: Figure 8: Robots.txt Parser Implementation Ensuring Ethical Crawling Standards
+110: 2.5 Scheduling and Automation
+114: 2.6 Data Collection and MongoDB Storage
+117: 2.7 Text Preprocessing Pipeline
+119: 1. Lowercase Normalisation: Eliminates case differences ('Healthcare' -> 'healthcare').
+120: 2. Cleaning: Regex [^a-z0-9\s] removes punctuation and special symbols.
+121: 3. Tokenisation: NLTK word_tokenize extracts linguistic word units.
+125: 2.8 Vector Space Model
+127: TF(t, d)  =  count(t, d) / |d|
+128: IDF(t)  =  log( N / (1 + df(t)) ) + 1
+129: TF-IDF(t, d)  =  TF(t, d)  ×  IDF(t)
+132: 2.9 Cosine Similarity and Ranking
+134: cos(θ)  =  (Q · D)  /  (||Q|| × ||D||)
+136: cos(θ)  =  Σ  Q(t) × D(t)    for t ∈ Q ∩ D
+138: 2.10 Query Processing
+141: 2.11 Top-K Search and Pagination
+143: results = scored[(page-1)*10 : page*10]
+144: 2.12 Search Interface
+147: Figure 3: Search Results for Query 'mental health' — Cosine Similarity Scores
+148: 2.13 Evaluation and Testing
+151: Table 1: Search Evaluation Results — Task 1
+157: Table 2: Precision@K Evaluation — Task 1
+159: 2.14 Limitations and Improvements
+165: 2.15 Code Evidence (Task 1)
+172: 3. Task 2 — News Document Clustering
+173: 3.1 Problem Statement
+176: 3.2 Objectives
+178: 3.3 Literature Review and Theoretical Foundation
+181: J  =  Σₖ Σᵢ∈Cₖ  ||xᵢ − μₖ||²
+185: 3.4 Dataset and Data Engineering
+190: Table 3: Task 2 Dataset Distribution
+193: Figure 4: News Document Clustering — Overview Dashboard (527 Documents)
+194: 3.5 Text Preprocessing and Feature Engineering
+197: 3.6 TF-IDF Vectorisation
+201: 3.7 K-Means Clustering Methodology
+203: KMeans(n_clusters=3, init='k-means++', n_init=10, max_iter=300, random_state=42)
+204: The K-Means algorithm proceeds as follows:
+210: 3.8 User Input Classification
+212: The input text is preprocessed using the identical NLP pipeline applied during training.
+214: The trained KMeans model predicts the nearest centroid: cluster_id = argminₖ ||x_new - μₖ||.
+217: A keyword fallback ensures API resilience if the model file is temporarily uninitialised.
+219: Figure 6: Document Classification Panel — User Interface
+221: Figure 7: Classification Result — Live Prediction from the Trained K-Means Model
+222: 3.9 MongoDB Storage
+224: 3.10 Clustering Visualisation
+227: Figure 5: K-Means Cluster Visualisation — PCA 2D Projection of 527 Real Documents
+228: 3.11 Results and Performance Analysis
+229: 3.11.1 K-Means Clustering Confusion Matrix
+232: 3.11.2 Critical Evaluation of K-Means Misclassifications
+237: Table 4: Classification Test Results — Task 2
+241: 3.12 Discussion and Findings
+245: 3.13 Limitations and Future Improvements
+250: 3.14 Code Evidence (Task 2)
+257: 4. Overall Discussion
+264: 5. Conclusion
+270: References
+272: Bishop, C. M. (2006). Pattern recognition and machine learning. Springer.
+279: Salton, G., & McGill, M. J. (5273). Introduction to modern information retrieval. McGraw-Hill.
+285: Appendix
+286: Appendix A: Project Links
+287: GitHub Repository: https://github.com/SadhanaAdhikari0/Information_Retrival_Assignment
+288: Video Demonstration: https://youtu.be/video_link_placeholder
+290: Appendix B: Key Code Snippets
+291: B.1 TF-IDF Query Vector Construction (backend/app.py)
+293: A.2 Cosine Similarity (backend/app.py)
+295: A.3 K-Means Training (backend/rss_collector.py)
+297: A.4 3-Month Crawl Schedule (backend/scheduler.py)
+301: Appendix B: MongoDB Document Examples
+302: B.1 Sample doc_vectors Document:
+304: B.2 Sample news_documents Document:
+306: Appendix C: System File Structure
+308: Appendix D: Additional Required Tables
+309: D.1 Requirements Validation
+311: D.2 Functional Requirements
+313: D.3 Technology Stack
+316: Appendix E: Additional Code Evidence
+317: E.1 Crawler Link Filtering (backend/scheduler.py)
+319: E.2 Top-K and Pagination (backend/app.py)
+321: E.3 News Classification and MongoDB Storage (backend/app.py)
+324: Appendix: Application Links and Screenshots
+325: GitHub Repository: https://github.com/SadhanaAdhikari0/Information_Retrival_Assignment
+326: Video Demonstration: [Insert Video Presentation Link Here]
+328: 1. Application UI Screenshots
+329: Figure 1: Vertical Search Engine Home Page
+332: Figure 3: Search Results for "mental health"
+335: Figure 4: News Document Clustering Dashboard
+338: Figure 5: K-Means Cluster Visualisation
+341: Figure 6: Document Classification Panel
+344: Figure 7: Classification Result
+348: 2. Antigravity IDE Code Screenshots
+349: B.1 TF-IDF Query Vector Construction (backend/app.py)
+352: A.2 Cosine Similarity (backend/app.py)
+355: A.3 K-Means Training (backend/rss_collector.py)
+358: A.4 3-Month Crawl Schedule (backend/scheduler.py)
+361: A.5 Robots.txt Compliance (backend/rss_collector.py)
+364: Appendix B: MongoDB Document Examples - B.1 Sample doc_vectors Document
+367: B.2 Sample news_documents Document
+370: Backend: app.py
+373: Backend: scheduler.py
+376: Backend: rss_collector.py (Robots.txt Parser)
+379: Frontend: SearchPage.jsx
+382: Frontend: NewsPage.jsx
+385: Backend: rss_collector.py (KMeans Clustering implementation)
+388: Backend: scheduler.py (Scheduler trigger implementation)
+391: Backend: scheduler.py (Crawler Link Filtering)
+394: Backend: app.py (Top-K and Pagination)
+397: Backend: app.py (News Classification and MongoDB Storage)

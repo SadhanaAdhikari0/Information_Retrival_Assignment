@@ -1,0 +1,31 @@
+15: Both components are integrated into a single web application with a modern, responsive interface. Ev
+81: The solution uses a Flask REST API backend, a React frontend, MongoDB Atlas storage, and NLTK/scikit
+142: The backend slices ranked results to return K=10 items per page (results = scored[(page-1)*10 : page
+267: Empirical evaluations confirm accurate ranking (0.2982 score on 'mental health') and robust clusteri
+291: B.1 TF-IDF Query Vector Construction (backend/app.py)
+293: A.2 Cosine Similarity (backend/app.py)
+295: A.3 K-Means Training (backend/rss_collector.py)
+297: A.4 3-Month Crawl Schedule (backend/scheduler.py)
+299: A.5 Robots.txt Compliance (backend/rss_collector.py — actually enforced before every article fetch, 
+307: Information_Retrival_Assignment/
+├── backend/
+│   ├── app.py                    ← Flask API (Task 1 
+317: E.1 Crawler Link Filtering (backend/scheduler.py)
+319: E.2 Top-K and Pagination (backend/app.py)
+321: E.3 News Classification and MongoDB Storage (backend/app.py)
+349: B.1 TF-IDF Query Vector Construction (backend/app.py)
+352: A.2 Cosine Similarity (backend/app.py)
+355: A.3 K-Means Training (backend/rss_collector.py)
+358: A.4 3-Month Crawl Schedule (backend/scheduler.py)
+361: A.5 Robots.txt Compliance (backend/rss_collector.py)
+370: Backend: app.py
+373: Backend: scheduler.py
+376: Backend: rss_collector.py (Robots.txt Parser)
+385: Backend: rss_collector.py (KMeans Clustering implementation)
+388: Backend: scheduler.py (Scheduler trigger implementation)
+391: Backend: scheduler.py (Crawler Link Filtering)
+394: Backend: app.py (Top-K and Pagination)
+397: Backend: app.py (News Classification and MongoDB Storage)
+400: Task 1: Search Engine - Inverted Index
+403: Task 2: Document Clustering - Confusion Matrix Heatmap
+407: Task 2: Document Clustering - Elbow Method Validation
