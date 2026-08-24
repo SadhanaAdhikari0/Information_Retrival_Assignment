@@ -72,3 +72,6 @@ The web crawler is designed to be highly reliable and fast. To manually trigger 
 python scheduler.py
 ```
 This will wipe the old data, scrape the university portal fresh, generate the term indexes, and populate the MongoDB Atlas cluster within 10 seconds.
+
+
+Video- https://www.youtube.com/watch?v=iexWGTksq8A
