@@ -32,6 +32,7 @@ Thumbs.db
 
 # Claude configuration
 .claude/
+.claude/
 
 # Assignment specific files
 *.pdf
@@ -39,3 +40,8 @@ Thumbs.db
 *.csv
 report_*.txt
 *Prompt*.md
+
+# Ignored Report Files
+SadhanaFinal_ST7071CEM_Information_Retrieval_Report_Updated - Copy.docx
+Sadhana_Adhikari_17625409_ST7071CEM_IR.pdf
+Final_ST7071CEM_Information_Retrieval_Report_Updated - Copy (3).docx

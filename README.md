@@ -23,6 +23,42 @@ This repository contains the full source code for the ST7071CEM Information Retr
 
 ---
 
+## System Architecture
+
+```mermaid
+graph TD
+    subgraph Frontend [React.js Frontend]
+        UI[User Interface]
+        Search[Search Component]
+        Cluster[Clustering Component]
+    end
+
+    subgraph Backend [Python Flask Backend]
+        API[Flask API]
+        Crawler[Web Crawler / Scheduler]
+        TFIDF[TF-IDF & Vector Space Model]
+        KMeans[K-Means Clustering]
+    end
+
+    subgraph External [External Services]
+        PurePortal[Coventry University PurePortal]
+        MongoDB[(MongoDB Atlas)]
+    end
+
+    UI -->|Queries| Search
+    UI -->|Data| Cluster
+    Search <-->|REST API| API
+    Cluster <-->|REST API| API
+
+    Crawler -->|Scrape RSS/XML| PurePortal
+    Crawler -->|Raw Data| TFIDF
+    TFIDF -->|Index & Vectors| MongoDB
+    API <-->|Fetch/Search| MongoDB
+    KMeans -->|Text Classification| MongoDB
+```
+
+---
+
 ## How to Run the Application
 
 The application is fully decoupled. You must start the Python Backend and the React Frontend simultaneously.
